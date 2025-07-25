@@ -1,2 +1,8 @@
 /ouput/*
 /questions/*
+.DS_Store
+/back
+/Images
+/Text
+/src/__pycache__
+log.txt
