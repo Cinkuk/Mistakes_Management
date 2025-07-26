@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QFrame, QCheckBox, QSpinBox, QFileDialog, QMessageBox,
                                QGridLayout, QSizePolicy, QGroupBox, QInputDialog, QLayout, QListWidget,
                                QListWidgetItem)
-from PySide6.QtCore import Qt, QDateTime
+from PySide6.QtCore import Qt, QDateTime, QSize
 from PySide6.QtGui import QPixmap, QFont, QFontMetrics
 import json
 import os
@@ -356,6 +356,7 @@ class EditorWidget(QWidget):
         # Line2: 题目图片
         image_group = QGroupBox("题目图片")
         image_layout = QVBoxLayout()
+        #image_layout.setContentsMargins(0, 0, 1, 1)
         
         image_btn_layout = QHBoxLayout()
         self.paste_image_btn = QPushButton("粘贴图片")
@@ -640,8 +641,20 @@ class EditorWidget(QWidget):
             return False
 
     def show_image(self, qtimage):
+        # 手动计算保持宽高比的缩放比例
+        image_size = qtimage.size()
+        label_size = self.image_label.size()
+
+        # 计算缩放比例
+        ratio = 0.75 * min(label_size.width() / image_size.width(), 
+                label_size.height() / image_size.height())
+
+        # 应用缩放
+        scaled_size = QSize(image_size.width() * ratio, 
+                        image_size.height() * ratio)
+        
         pixmap = QPixmap(qtimage).scaled(
-            self.image_label.size(),
+            scaled_size,
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation
             )
