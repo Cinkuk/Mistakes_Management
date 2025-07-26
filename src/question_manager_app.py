@@ -116,7 +116,7 @@ class Data:
         return rst
     
     def add_source(self, subject, source):
-        if source and not self.MetaData.if_in('sources', source):
+        if source and source not in GlobalData.BIND['subjects'][subject]:
             self.MetaData.add_source(source)
             self.MetaData.add_bind('source', [subject, source])
             self.update_metadata()
