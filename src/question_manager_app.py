@@ -4,8 +4,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QLabel, QComboBox, QLineEdit, QTextEdit, QScrollArea,
                                QFrame, QCheckBox, QSpinBox, QFileDialog, QMessageBox,
                                QGridLayout, QSizePolicy, QGroupBox, QInputDialog, QLayout, QListWidget,
-                               QListWidgetItem)
-from PySide6.QtCore import Qt, QDateTime, QSize
+                               QListWidgetItem, QDialog, QDialogButtonBox)
+from PySide6.QtCore import Qt, QDateTime, QSize, Signal
 from PySide6.QtGui import QPixmap, QFont, QFontMetrics
 import json
 import os
@@ -35,6 +35,79 @@ def adjust_to_content(combo_box, extra_width=25):
     if combo_box.view():
         combo_box.view().setMinimumWidth(new_width)
 
+class keypointInputDialog(QDialog):
+    def __init__(self, ui, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        
+        #self.setWindowTitle("请输入知识点")
+        #self.input_label = QLabel("请输入内容:")
+        self.input_label = QLabel()
+        self.line_edit = QLineEdit()
+        self.appendix_label = QLabel()
+        self.appendix_label.setWordWrap(True)
+        self.notice_label = QLabel('相似知识点:')
+
+        self.line_edit.textChanged.connect(self._on_text_changed)
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        
+        layout.addWidget(self.input_label)
+        layout.addWidget(self.line_edit)
+        layout.addWidget(self.notice_label)
+        layout.addWidget(self.appendix_label)
+        layout.addWidget(buttons)
+
+        self.ui = ui
+    
+    def _on_text_changed(self, content):
+        self.on_text_changed(content)
+    
+    def on_text_changed(self, content):
+        subject = self.ui.subject_combo.currentText()
+        keypoints = self.ui.question_data.keypoint_child
+        current_keypoints = []
+        relative_keypoints = []
+        #print(subject)
+        if subject in keypoints.keys():
+            current_keypoints = keypoints[subject]
+            for item in current_keypoints:
+                if content in item:
+                    relative_keypoints.append(item)
+        #print(current_keypoints)
+        if relative_keypoints:
+            text = ''
+            for i in range(len(relative_keypoints)):
+                text += relative_keypoints[i]
+                if i % 2 == 0:
+                    text += ' ; '
+                else:
+                    text += '\n'
+            #print(relative_keypoints)
+            self.setAppendixText(text)
+
+    def setAppendixText(self, text):
+        self.appendix_label.setText(text)
+        self.adjustSize()
+
+    def textValue(self):
+        return self.line_edit.text()
+    
+    @staticmethod
+    def getText(parent=None, title="", label=""):
+        dialog = keypointInputDialog(parent)
+        dialog.setWindowTitle(title)
+        dialog.input_label.setText(label)
+        
+        ok = dialog.exec_() == QDialog.Accepted
+        input_text = dialog.textValue() if ok else ""
+        if input_text == "":
+            ok = False
+        
+        return (input_text, ok)
+          
 class Data:
     def __init__(self):
         # read in questions data
@@ -590,10 +663,15 @@ class EditorWidget(QWidget):
             return False
     
     def add_keypoint(self):
-        text, ok = QInputDialog.getText(
-            None,
+        #text, ok = QInputDialog.getText(
+        #    None,
+        #    '请输入知识点',
+        #    '请输入内容')
+        text, ok = keypointInputDialog.getText(
+            self,
             '请输入知识点',
-            '请输入内容')
+            '请输入内容'
+            )
         if text and ok :
             content = text
         else:
@@ -1124,4 +1202,14 @@ def main():
     sys.exit(app.exec())
 
 if __name__ == "__main__":
-    main()
+    app = QApplication(sys.argv)
+
+    #dialog = CustomInputDialog()
+    #dialog.exec_()
+    text, ok = CustomInputDialog.getText(
+        parent=None,
+        title='请输入知识点',
+        label='请输入内容'
+        )
+    print(ok)
+    print(text)
