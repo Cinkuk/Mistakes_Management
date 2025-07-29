@@ -66,6 +66,7 @@ class keypointInputDialog(QDialog):
         self.on_text_changed(content)
     
     def on_text_changed(self, content):
+        #print('enter')
         subject = self.ui.subject_combo.currentText()
         keypoints = self.ui.question_data.keypoint_child
         current_keypoints = []
@@ -74,7 +75,7 @@ class keypointInputDialog(QDialog):
         if subject in keypoints.keys():
             current_keypoints = keypoints[subject]
             for item in current_keypoints:
-                if content in item:
+                if content and content in item:
                     relative_keypoints.append(item)
         #print(current_keypoints)
         if relative_keypoints:
@@ -87,6 +88,7 @@ class keypointInputDialog(QDialog):
                     text += '\n'
             #print(relative_keypoints)
             self.setAppendixText(text)
+        #print(relative_keypoints)
 
     def setAppendixText(self, text):
         self.appendix_label.setText(text)
