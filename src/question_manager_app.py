@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QGridLayout, QSizePolicy, QGroupBox, QInputDialog, QLayout, QListWidget,
                                QListWidgetItem, QDialog, QDialogButtonBox)
 from PySide6.QtCore import Qt, QDateTime, QSize, Signal
-from PySide6.QtGui import QPixmap, QFont, QFontMetrics
+from PySide6.QtGui import QPixmap, QFont, QFontMetrics, QAction, QKeySequence
 import json
 import os
 from datetime import datetime
@@ -87,6 +87,9 @@ class keypointInputDialog(QDialog):
                 else:
                     text += '\n'
             #print(relative_keypoints)
+            self.setAppendixText(text)
+        else:
+            text = ''
             self.setAppendixText(text)
         #print(relative_keypoints)
 
