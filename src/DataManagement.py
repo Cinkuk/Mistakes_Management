@@ -3,6 +3,7 @@
 import os
 import sys
 import json
+import shutil
 from hashlib import md5
 
 import GlobalData, LogManagement
@@ -234,6 +235,26 @@ class DiskController(object):
             json.dump(existing_index, file, indent=4)
 
         return True
+    
+    @staticmethod
+    def import_data(image_folder, text_folder):
+        image_root = os.path.join(GlobalData.DATA_ROOT_PATH, 'Images')
+        text_root = os.path.join(GlobalData.DATA_ROOT_PATH, 'Text')
+        images = os.listdir(image_folder)
+        text_files = os.listdir(text_folder)
+        try:
+            for file in images:
+                shutil.copyfile(os.path.join(image_folder, file), 
+                                os.path.join(image_root, file))
+            for file in text_files:
+                shutil.copyfile(os.path.join(text_folder, file),
+                                os.path.join(text_root, file))
+            
+            LOG.write('INFO', '从{}, {}导入数据'.format(image_folder, text_folder))
+        except:
+            LOG.write('ERROR', 'OS Error 写入失败')
+
+
 
 if __name__ == '__main__':
     a = os.path.dirname(os.path.abspath(__file__))

@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QLabel, QComboBox, QLineEdit, QTextEdit, QScrollArea,
                                QFrame, QCheckBox, QSpinBox, QFileDialog, QMessageBox,
                                QGridLayout, QSizePolicy, QGroupBox, QInputDialog, QLayout, QListWidget,
-                               QListWidgetItem, QDialog, QDialogButtonBox)
+                               QListWidgetItem, QDialog, QDialogButtonBox, QFileDialog)
 from PySide6.QtCore import Qt, QDateTime, QSize, Signal
 from PySide6.QtGui import QPixmap, QFont, QFontMetrics, QAction, QKeySequence
 import json
@@ -113,6 +113,80 @@ class keypointInputDialog(QDialog):
         
         return (input_text, ok)
           
+class ChooseFile(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.image_folder = ''
+        self.text_folder = ''
+
+        self.setMinimumWidth(600)
+        self.setMaximumWidth(600)
+        self.setMinimumHeight(200)
+        self.setMaximumHeight(200)
+
+        layout = QVBoxLayout()
+        grid_widget = QWidget()
+        grid = QGridLayout()
+
+        self.label1 = QLabel('请选择图片文件夹Images路径')
+        self.label2 = QLabel('请选择文本数据文件夹Text路径')
+        self.line1_edit = QLineEdit()
+        self.line1_edit.setEnabled(False)
+        self.line2_edit = QLineEdit()
+        self.line2_edit.setEnabled(False)
+        self.line1_btn = QPushButton('...')
+        self.line2_btn = QPushButton('...')
+        self.ok_btn = QPushButton('确定')
+
+        grid.addWidget(self.label1, 0, 0)
+        grid.addWidget(self.line1_edit, 0, 1)
+        grid.addWidget(self.line1_btn, 0, 2)
+
+        grid.addWidget(self.label2, 1, 0)
+        grid.addWidget(self.line2_edit, 1, 1)
+        grid.addWidget(self.line2_btn, 1, 2)
+
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 4)
+        grid.setColumnStretch(2, 0.3)
+
+        self.line1_btn.clicked.connect(lambda : self.select_folder(0))
+        self.line2_btn.clicked.connect(lambda : self.select_folder(1))
+        self.ok_btn.clicked.connect(lambda : self.close())
+
+        grid_widget.setLayout(grid)
+        layout.addWidget(grid_widget)
+        layout.addWidget(self.ok_btn)
+
+        self.setLayout(layout)
+        self.exec()
+    
+
+    def select_folder(self, index):
+        folder_path = QFileDialog.getExistingDirectory(
+        None,  # 父窗口
+        "选择文件夹",  # 对话框标题
+        "",  # 起始目录（空表示默认目录）
+        QFileDialog.ShowDirsOnly  # 只显示目录
+    )
+    
+        if folder_path:  # 如果用户没有取消选择
+            if index == 0:
+                self.image_folder = folder_path
+                self.line1_edit.setText(folder_path)
+            if index == 1:
+                self.text_folder = folder_path
+                self.line2_edit.setText(folder_path)
+        
+    @staticmethod
+    def get_folders():
+        dialog = ChooseFile()
+        if dialog.image_folder and dialog.text_folder:
+            return (dialog.image_folder, dialog.text_folder)
+        else:
+            return None
+
+
 class Data:
     def __init__(self):
         # read in questions data
@@ -283,10 +357,14 @@ class SidebarWidget(QWidget):
         
         self.exporter_btn = QPushButton("导出")
         self.exporter_btn.setStyleSheet(btn_style)
+
+        self.import_btn = QPushButton('导入')
+        self.import_btn.setStyleSheet(btn_style)
         
         layout.addWidget(self.editor_btn)
         layout.addWidget(self.checker_btn)
         layout.addWidget(self.exporter_btn)
+        layout.addWidget(self.import_btn)
         layout.addStretch()
         
         self.setLayout(layout)
@@ -1143,6 +1221,7 @@ class MainWindow(QMainWindow):
         self.sidebar.editor_btn.clicked.connect(lambda: self.switch_page(0))
         self.sidebar.checker_btn.clicked.connect(lambda: self.switch_page(1))
         self.sidebar.exporter_btn.clicked.connect(lambda: self.switch_page(2))
+        self.sidebar.import_btn.clicked.connect(self.import_data)
         
         # 默认显示Editor页面
         self.switch_page(0)
@@ -1169,6 +1248,12 @@ class MainWindow(QMainWindow):
             #self.editor_page.update_subject_combo()
             #self.editor_page.update_source_combo()
             a=0
+        
+    def import_data(self):
+        rst = ChooseFile.get_folders()
+        if rst:
+            image_folder, text_folder = rst
+            DataManagement.DiskController.import_data(image_folder, text_folder)
 
 def main():
     app = QApplication(sys.argv)
