@@ -4,11 +4,12 @@
 # receive messages from others components and write in log file
 
 import os
+import sys
+import traceback
 from time import localtime, strftime
 def get_timestamp():
     return strftime("%Y-%m-%d %H:%M:%S", localtime()) 
 
-import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 lib_path = os.path.join(project_root, 'Lib')
@@ -39,3 +40,21 @@ class Log(object):
     
     def write(self, type, content):
         self.writer.write(self.subscriber, type, content)
+
+ERROR_LOG = Log('BlobalException')
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """全局异常捕获"""
+    if issubclass(exc_type, KeyboardInterrupt):
+        # 允许 Ctrl+C 正常退出
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+
+    error_message = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    
+    # 写入到日志文件
+    ERROR_LOG.write('ERROR', f"未捕获异常:\n{error_message}")
+
+    # 如果想同时在控制台显示，可以加上这一行
+    print(f"程序发生未捕获异常，已写入日志文件:\n{error_message}")
+
+sys.excepthook = handle_exception
