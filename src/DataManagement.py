@@ -202,7 +202,9 @@ class DiskController(object):
             json.dump(metadata, file)
         LOG.write('INFO', '写入元数据')
     
-    def read_questions(self):
+    def read_questions(self, ID):
+        # return 
+        # ID, subject, source, times, image_path, keypoints, note, answer
         pass
 
     def write_questions(self, qtimage, questiondata):

@@ -8,14 +8,10 @@ QUESTION_TYPES = []
 BIND = dict()
 KEYPOINTS = dict()
 NEWEST_ID = 0
+KEYPOINTS_GROUP = dict() # dict[subject][group_name]
 
 # questions
 QUESTIONS = []
-
-# struct
-class question(object):
-    def __init__(self, question_data):
-        self.data = question_data
 
 # constant
 DATA_ROOT_PATH = ''

@@ -82,7 +82,7 @@ class keypointInputDialog(QDialog):
             text = ''
             for i in range(len(relative_keypoints)):
                 text += relative_keypoints[i]
-                if i % 2 == 0:
+                if not i % 3 == 2:
                     text += ' ; '
                 else:
                     text += '\n'
@@ -186,6 +186,190 @@ class ChooseFile(QDialog):
         else:
             return None
 
+class ImageViewerDialog(QDialog):
+    def __init__(self, image_path, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(400, 300)
+        
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignCenter)
+        self.image_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.image_label.setScaledContents(True)
+        
+        self.load_image(image_path)
+        
+        scroll.setWidget(self.image_label)
+        
+        layout = QVBoxLayout()
+        layout.addWidget(scroll)
+        self.setLayout(layout)
+    
+    def load_image(self, path):
+        pixmap = QPixmap(path)
+        if not pixmap.isNull():
+            screen_size = QApplication.primaryScreen().availableSize()
+            max_width = screen_size.width() * 0.8
+            max_height = screen_size.height() * 0.8
+            
+            scaled_pixmap = pixmap.scaled(
+                QSize(max_width, max_height),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
+            self.image_label.setPixmap(scaled_pixmap)
+            self.resize(scaled_pixmap.width(), scaled_pixmap.height())
+    
+    @staticmethod
+    def show(image_path):
+        window = ImageViewerDialog(image_path)
+        window.exec()
+
+class QuestionWidget():
+    def __init__(self, ID):
+        self.widget = self.create_widget(ID)
+    
+    def get_question_data(self, ID):
+        # return ID, subject, source, times, image_path, keypoints, note, answer
+        disk = DataManagement.DiskController()
+        return disk.read_questions(ID)
+
+    def fill_widget(self, widget, data):
+        ID, subject, source, times, image_path, keypoints, note, answer = data
+        if ID:
+            widget.ID_label.setText(ID)
+        if subject:
+            widget.subject_label.setText(subject)
+        if source:
+            widget.source_label.setText(source)
+        if times:
+            widget.times_label.setText(times)
+        if image_path:
+            qtimage = QPixmap(image_path)
+            image_size = qtimage.size()
+            label_size = widget.image_label.size()
+            # 计算缩放比例
+            ratio = 0.75 * min(label_size.width() / image_size.width(), 
+                    label_size.height() / image_size.height())
+
+            # 应用缩放
+            scaled_size = QSize(image_size.width() * ratio, 
+                            image_size.height() * ratio)
+            
+            pixmap = QPixmap(qtimage).scaled(
+                scaled_size,
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+                )
+            widget.image_label.setPixmap(pixmap)
+        if keypoints:
+            widget.keypoints_label.setText(keypoints)
+        if note:
+            widget.notice_label.setText(note)
+        if answer:
+            widget.answer_label.setText(answer)
+    
+    def create_widget(self, ID):
+        data = self.get_question_data(ID)
+        if data is False:
+            return False
+        image_path = data[4]
+
+        widget = QFrame()
+        layout = QVBoxLayout()
+        line1 = QHBoxLayout()
+        line2 = QHBoxLayout()
+        line3 = QHBoxLayout()
+        line4 = QHBoxLayout()
+        line5 = QHBoxLayout()
+
+        widget.setStyleSheet("""
+                    QWidget {
+                        border: 1px solid black;
+                    }
+                """)
+        
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # line 1
+        line1.addWidget(QLabel('题目编号:'))
+        self.ID_label = QLabel()
+        line1.addWidget(self.ID_label)
+        line1.addStretch()
+        line1.addWidget(QLabel('科目:'))
+        self.subject_label = QLabel()
+        line1.addWidget(self.subject_label)
+        line1.addStretch()
+        line1.addWidget(QLabel('来源:'))
+        self.source_label = QLabel()
+        line1.addWidget(self.source_label)
+        line1.addStretch()
+        line1.addWidget(QLabel('错误次数:'))
+        self.times_label = QLabel()
+        line1.addWidget(self.times_label)
+        line1.addStretch()
+        self.edit_btn = QPushButton('编辑')
+        self.edit_btn.setMaximumWidth(60)
+        line1.addWidget(self.edit_btn)
+        self.del_btn = QPushButton('删除')
+        self.del_btn.setMaximumWidth(60)
+        line1.addWidget(self.del_btn)
+
+        self.edit_btn.clicked.connect(self.edit(self.ID_label.text(ID)))
+        self.del_btn.clicked.connect(self.delete(self.ID_label.text(ID)))
+
+        # line 2
+        self.image_label = QLabel()
+        line2.addStretch()
+        line2.addWidget(self.image_label)
+        line2.addStretch()
+        self.image_label.mousePressEvent = lambda event : ImageViewerDialog.show(image_path)
+
+        # line 3
+        line3.addWidget(QLabel('知识点:'))
+        self.keypoints_label = QLabel()
+        line3.addWidget(self.keypoints_label)
+        line3.addStretch()
+
+        # line 4
+        line4.addWidget(QLabel('备注'))
+        self.notice_label = QLabel()
+        line4.addWidget(self.notice_label)
+        line4.addStrech()
+
+        # line 5
+        line5.addWidget(QLabel('答案:'))
+        self.answer_label = QLabel()
+        line5.addWidget(self.answer_label)
+        line5.addStretch()
+
+        for i, line in enumerate(line1, line2, line3, line4, line5):
+            line.setSpacing(0)
+            line.setContentsMargins(12, 0, 12, 0)
+            container = QWidget()
+            container.setMinimumHeight(30)
+            container.setMaximumHeight(30)
+            if i == 1:
+                container.setMinimumHeight(100)
+                container.setMaximumHeight(100)
+            container.setLayout(line)
+            layout.addWidget(container)
+
+        layout.setContentsMargins(0, 0, 0, 0)
+        widget.setLayout(layout)
+
+        # fill content
+        self.fill_widget(widget, data)
+
+        return widget
+
+    @staticmethod
+    def get_widget(ID):
+        widget_class = QuestionWidget(ID)
+        return widget_class.widget
 
 class Data:
     def __init__(self):
@@ -246,14 +430,6 @@ class Data:
     def del_question(self, question_data):
         # delete bind of source & ID
         pass
-        
-    def get_questions(self, subject=None, source=None):
-        filtered = self.questions
-        if subject and subject != "全部":
-            filtered = [q for q in filtered if q.get('subject') == subject]
-        if source and source != "全部":
-            filtered = [q for q in filtered if q.get('source') == source]
-        return sorted(filtered, key=lambda x: x.get('timestamp', ''), reverse=True)
     
     def add_subject(self, subject):
         if subject and not self.MetaData.if_in('subjects', subject):
@@ -300,7 +476,7 @@ class Data:
         if content not in self.keypoint_child[subject]:
             self.keypoint_child[subject].append(content)
         self.MetaData.update_keypoints(self.keypoint_child)
-        print(GlobalData.BIND)
+        #print(GlobalData.BIND)
     
     def del_keypoint(self, subject, content):
         keys = self.keypoint_child.keys()
@@ -417,6 +593,7 @@ class EditorWidget(QWidget):
         self.subject_combo.setMinimumWidth(130)
         self.subject_combo.currentTextChanged.connect(self.update_subject_combo)
         self.subject_combo.currentTextChanged.connect(self.update_from_text)
+        self.subject_combo.currentTextChanged.connect(lambda : self.page_edit.clear())
         
         self.subject_add_btn.setMaximumWidth(20)
         self.subject_add_btn.clicked.connect(self.add_subject)
@@ -439,6 +616,7 @@ class EditorWidget(QWidget):
         self.update_source_combo()
         self.source_combo.setMinimumWidth(200)
         self.source_combo.currentTextChanged.connect(self.update_from_text)
+        self.source_combo.currentTextChanged.connect(lambda : self.page_edit.clear())
         
         self.source_add_btn.setMaximumWidth(20)
         self.source_add_btn.clicked.connect(self.add_source)
@@ -886,7 +1064,7 @@ class CheckerWidget(QWidget):
         super().__init__(parent)
         self.question_data = question_data
         self.setup_ui()
-        #self.refresh_questions()
+        self.refresh_questions()
         
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -894,7 +1072,7 @@ class CheckerWidget(QWidget):
         layout.setSpacing(15)
         
         # 标题
-        title = QLabel("题目查看器")
+        title = QLabel("题目查看")
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50; margin-bottom: 10px;")
         layout.addWidget(title)
         
@@ -903,17 +1081,29 @@ class CheckerWidget(QWidget):
         filter_layout.addWidget(QLabel("科目:"))
         
         self.filter_subject = QComboBox()
+        self.filter_subject.setMinimumWidth(130)
         self.filter_subject.addItem("全部")
-        self.filter_subject.addItems(self.question_data.subjects)
         self.filter_subject.currentTextChanged.connect(self.refresh_questions)
         filter_layout.addWidget(self.filter_subject)
         
-        filter_layout.addWidget(QLabel("书籍:"))
+        filter_layout.addWidget(QLabel("来源:"))
         self.filter_source = QComboBox()
+        self.filter_source.setMinimumWidth(130)
         self.filter_source.addItem("全部")
-        self.filter_source.addItems(self.question_data.sources)
         self.filter_source.currentTextChanged.connect(self.refresh_questions)
         filter_layout.addWidget(self.filter_source)
+
+        filter_layout.addWidget(QLabel("知识点筛选:"))
+        self.filter_keypoint_show = QLineEdit()
+        self.filter_keypoint_show.setMinimumWidth(200)
+        self.filter_keypoint_show.setEnabled(False)
+        self.filter_keypoint = QPushButton('筛选条件')
+        self.filter_keypoint.clicked.connect(self.set_filter)
+        self.keypoints_group_btn = QPushButton('知识点归类')
+        self.keypoints_group_btn.clicked.connect(self.group_keypoints)
+        filter_layout.addWidget(self.filter_keypoint_show)
+        filter_layout.addWidget(self.filter_keypoint)
+        filter_layout.addWidget(self.keypoints_group_btn)
         
         filter_layout.addStretch()
         layout.addLayout(filter_layout)
@@ -929,80 +1119,30 @@ class CheckerWidget(QWidget):
         self.setLayout(layout)
         
     def refresh_questions(self):
-        # 清空现有内容
-        for i in reversed(range(self.scroll_layout.count())):
-            self.scroll_layout.itemAt(i).widget().setParent(None)
-            
-        # 更新筛选选项
-        self.update_filter_options()
-            
-        # 获取筛选后的题目
-        questions = self.question_data.get_questions(
-            self.filter_subject.currentText(),
-            self.filter_source.currentText()
-        )
-        
-        # 显示题目
-        for i, question in enumerate(questions):
-            question_widget = self.create_question_widget(question, i + 1)
-            self.scroll_layout.addWidget(question_widget)
-            
-        self.scroll_layout.addStretch()
-        
-    def update_filter_options(self):
-        """更新筛选选项，与问题数据保持同步"""
-        # 更新科目筛选
-        current_subject = self.filter_subject.currentText()
-        self.filter_subject.clear()
-        self.filter_subject.addItem("全部")
-        self.filter_subject.addItems(self.question_data.subjects)
-        if current_subject in self.question_data.subjects or current_subject == "全部":
-            self.filter_subject.setCurrentText(current_subject)
-            
-        # 更新书籍筛选
-        current_source = self.filter_source.currentText()
-        self.filter_source.clear()
-        self.filter_source.addItem("全部")
-        self.filter_source.addItems(self.question_data.sources)
-        if current_source in self.question_data.sources or current_source == "全部":
-            self.filter_source.setCurrentText(current_source)
-        
-    def create_question_widget(self, question, index):
-        widget = QFrame()
-        widget.setFrameStyle(QFrame.Box)
-        widget.setStyleSheet("QFrame { border: 1px solid #bdc3c7; border-radius: 5px; padding: 10px; margin: 5px; }")
-        
-        layout = QVBoxLayout()
-        
-        # 题目信息
-        info_text = f"第{index}题 - {question.get('subject', '')} - {question.get('source', '')} - 第{question.get('page', '')}页 - {question.get('type', '')} - {question.get('mark', '')}{question.get('number', '')}"
-        info_label = QLabel(info_text)
-        info_label.setStyleSheet("font-weight: bold; color: #2c3e50;")
-        layout.addWidget(info_label)
-        
-        # 答案
-        if question.get('answer'):
-            answer_label = QLabel(f"答案: {question['answer']}")
-            answer_label.setWordWrap(True)
-            layout.addWidget(answer_label)
-            
-        # 时间
-        if question.get('timestamp'):
-            time_str = datetime.fromisoformat(question['timestamp']).strftime("%Y-%m-%d %H:%M:%S")
-            time_label = QLabel(f"创建时间: {time_str}")
-            time_label.setStyleSheet("color: #7f8c8d; font-size: 12px;")
-            layout.addWidget(time_label)
-            
-        widget.setLayout(layout)
-        return widget
+        pass
+
+    def create_question_widget(self, ID):
+        return QuestionWidget.get_widget(ID)
+
+    def edit(self, ID):
+        pass
+
+    def delete(self, ID):
+        pass
+
+    def set_filter(self):
+        pass
+
+    def group_keypoints(self):
+        pass
 
 class ExporterWidget(QWidget):
     def __init__(self, question_data, parent=None):
         super().__init__(parent)
         self.question_data = question_data
-        self.selected_questions = set()
+        self.selected_questions = list()
         self.setup_ui()
-        #self.refresh_questions()
+        self.refresh_questions()
         
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -1010,7 +1150,7 @@ class ExporterWidget(QWidget):
         layout.setSpacing(15)
         
         # 标题
-        title = QLabel("题目导出器")
+        title = QLabel("题目导出")
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50; margin-bottom: 10px;")
         layout.addWidget(title)
         
@@ -1020,33 +1160,48 @@ class ExporterWidget(QWidget):
         # 筛选
         top_layout.addWidget(QLabel("筛选:"))
         self.filter_combo = QComboBox()
+        self.filter_combo.setMinimumWidth(130)
         self.filter_combo.addItem("全部")
-        self.filter_combo.addItems(self.question_data.subjects)
         self.filter_combo.currentTextChanged.connect(self.refresh_questions)
         top_layout.addWidget(self.filter_combo)
         
-        top_layout.addWidget(QLabel("书籍:"))
+        top_layout.addWidget(QLabel("来源:"))
         self.source_filter = QComboBox()
+        self.source_filter.setMinimumWidth(130)
         self.source_filter.addItem("全部")
-        self.source_filter.addItems(self.question_data.sources)
         self.source_filter.currentTextChanged.connect(self.refresh_questions)
         top_layout.addWidget(self.source_filter)
+
+        top_layout.addWidget(QLabel("知识点筛选:"))
+        self.filter_keypoint_show = QLineEdit()
+        self.filter_keypoint_show.setMinimumWidth(200)
+        self.filter_keypoint_show.setEnabled(False)
+        self.filter_keypoint = QPushButton('筛选条件')
+        self.filter_keypoint.clicked.connect(self.set_filter)
+        top_layout.addWidget(self.filter_keypoint_show)
+        top_layout.addWidget(self.filter_keypoint)
         
         top_layout.addStretch()
         
         # 操作按钮
+        top_layout2 = QHBoxLayout()
         self.select_all_btn = QPushButton("全选")
+        self.select_all_btn.setMaximumWidth(60)
         self.select_all_btn.clicked.connect(self.select_all)
-        self.preview_btn = QPushButton("预览")
-        self.preview_btn.clicked.connect(self.preview_export)
+        self.unselect_all_btn = QPushButton("全不选")
+        self.unselect_all_btn.setMaximumWidth(60)
+        self.unselect_all_btn.clicked.connect(self.unselect_all)
         self.export_btn = QPushButton("导出")
+        self.export_btn.setMaximumWidth(60)
         self.export_btn.clicked.connect(self.export_questions)
         
-        top_layout.addWidget(self.select_all_btn)
-        top_layout.addWidget(self.preview_btn)
-        top_layout.addWidget(self.export_btn)
+        top_layout2.addWidget(self.select_all_btn)
+        top_layout2.addWidget(self.unselect_all_btn)
+        top_layout2.addWidget(self.export_btn)
+        top_layout2.addStretch()
         
         layout.addLayout(top_layout)
+        layout.addLayout(top_layout2)
         
         # 题目列表
         self.scroll_area = QScrollArea()
@@ -1059,121 +1214,25 @@ class ExporterWidget(QWidget):
         self.setLayout(layout)
         
     def refresh_questions(self):
-        # 清空现有内容
-        for i in reversed(range(self.scroll_layout.count())):
-            self.scroll_layout.itemAt(i).widget().setParent(None)
-            
-        self.selected_questions.clear()
-        
-        # 更新书籍筛选选项
-        current_source = self.source_filter.currentText()
-        self.source_filter.clear()
-        self.source_filter.addItem("全部")
-        self.source_filter.addItems(self.question_data.sources)
-        if current_source in self.question_data.sources or current_source == "全部":
-            self.source_filter.setCurrentText(current_source)
-            
-        # 获取筛选后的题目
-        questions = self.question_data.get_questions(
-            self.filter_combo.currentText(),
-            self.source_filter.currentText()
-        )
-        
-        # 显示题目
-        for i, question in enumerate(questions):
-            question_widget = self.create_export_question_widget(question, i)
-            self.scroll_layout.addWidget(question_widget)
-            
-        self.scroll_layout.addStretch()
+        pass
         
     def create_export_question_widget(self, question, index):
         widget = QFrame()
-        widget.setFrameStyle(QFrame.Box)
-        widget.setStyleSheet("QFrame { border: 1px solid #bdc3c7; border-radius: 5px; padding: 10px; margin: 5px; }")
         
-        layout = QHBoxLayout()
-        
-        # 左侧选择框
-        checkbox = QCheckBox()
-        checkbox.stateChanged.connect(lambda state, idx=index: self.toggle_question_selection(idx, state))
-        layout.addWidget(checkbox)
-        
-        # 中部题目信息
-        info_layout = QVBoxLayout()
-        
-        # 题目来源
-        source_text = f"{question.get('subject', '')} - {question.get('source', '')} - 第{question.get('page', '')}页"
-        source_label = QLabel(source_text)
-        source_label.setStyleSheet("font-weight: bold; color: #2c3e50;")
-        info_layout.addWidget(source_label)
-        
-        # 题目详情
-        detail_text = f"{question.get('type', '')} - {question.get('mark', '')}{question.get('number', '')}"
-        if question.get('answer'):
-            detail_text += f" | 答案: {question['answer'][:50]}{'...' if len(question.get('answer', '')) > 50 else ''}"
-        detail_label = QLabel(detail_text)
-        detail_label.setWordWrap(True)
-        info_layout.addWidget(detail_label)
-        
-        layout.addLayout(info_layout)
-        
-        # 右侧缩放比例
-        scale_layout = QVBoxLayout()
-        scale_layout.addWidget(QLabel("缩放比例:"))
-        scale_spin = QSpinBox()
-        scale_spin.setRange(10, 200)
-        scale_spin.setValue(100)
-        scale_spin.setSuffix("%")
-        scale_layout.addWidget(scale_spin)
-        
-        layout.addLayout(scale_layout)
-        
-        widget.setLayout(layout)
         return widget
-        
-    def toggle_question_selection(self, index, state):
-        if state == Qt.Checked:
-            self.selected_questions.add(index)
-        else:
-            self.selected_questions.discard(index)
+
+    def set_filter(self):
+        pass
             
     def select_all(self):
-        # 切换全选状态
-        total_questions = self.scroll_layout.count() - 1  # 减去stretch
-        if len(self.selected_questions) == total_questions:
-            # 当前全选，则取消全选
-            self.selected_questions.clear()
-            for i in range(total_questions):
-                widget = self.scroll_layout.itemAt(i).widget()
-                checkbox = widget.findChild(QCheckBox)
-                if checkbox:
-                    checkbox.setChecked(False)
-        else:
-            # 全选
-            self.selected_questions = set(range(total_questions))
-            for i in range(total_questions):
-                widget = self.scroll_layout.itemAt(i).widget()
-                checkbox = widget.findChild(QCheckBox)
-                if checkbox:
-                    checkbox.setChecked(True)
+        pass
+
+    def unselect_all(self):
+        pass
                     
-    def preview_export(self):
-        if not self.selected_questions:
-            QMessageBox.warning(self, "警告", "请先选择要预览的题目!")
-            return
-        QMessageBox.information(self, "预览", f"已选择 {len(self.selected_questions)} 道题目进行预览")
         
     def export_questions(self):
-        if not self.selected_questions:
-            QMessageBox.warning(self, "警告", "请先选择要导出的题目!")
-            return
-            
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "导出题目", "", "LaTeX文件 (*.tex);;PDF文件 (*.pdf)")
-        
-        if file_path:
-            # 这里应该实现实际的导出逻辑
-            QMessageBox.information(self, "导出成功", f"已导出 {len(self.selected_questions)} 道题目到 {file_path}")
+        pass
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -1255,8 +1314,11 @@ class MainWindow(QMainWindow):
             image_folder, text_folder = rst
             DataManagement.DiskController.import_data(image_folder, text_folder)
 
+
 def main():
     app = QApplication(sys.argv)
+    app.setAttribute(Qt.AA_EnableHighDpiScaling)
+    app.setAttribute(Qt.AA_UseHighDpiPixmaps)
     
     # 设置应用样式
     app.setStyleSheet("""
@@ -1292,14 +1354,4 @@ def main():
     sys.exit(app.exec())
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    #dialog = CustomInputDialog()
-    #dialog.exec_()
-    text, ok = CustomInputDialog.getText(
-        parent=None,
-        title='请输入知识点',
-        label='请输入内容'
-        )
-    print(ok)
-    print(text)
+    pass
