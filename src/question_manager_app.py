@@ -4,7 +4,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QLabel, QComboBox, QLineEdit, QTextEdit, QScrollArea,
                                QFrame, QCheckBox, QSpinBox, QFileDialog, QMessageBox,
                                QGridLayout, QSizePolicy, QGroupBox, QInputDialog, QLayout, QListWidget,
-                               QListWidgetItem, QDialog, QDialogButtonBox, QFileDialog)
+                               QListWidgetItem, QDialog, QDialogButtonBox, QFileDialog,
+                               QListView)
 from PySide6.QtCore import Qt, QDateTime, QSize, Signal
 from PySide6.QtGui import QPixmap, QFont, QFontMetrics, QAction, QKeySequence
 import json
@@ -12,6 +13,8 @@ import os
 from datetime import datetime
 
 import DataManagement, GlobalData
+
+ALLOW_REFRESH = False # if allow loading question data
 
 def adjust_to_content(combo_box, extra_width=25):
     """
@@ -228,7 +231,8 @@ class ImageViewerDialog(QDialog):
         window.exec()
 
 class QuestionWidget():
-    def __init__(self, ID):
+    def __init__(self, question_data, ID):
+        self.question_data = question_data
         self.widget = self.create_widget(ID)
     
     def get_question_data(self, ID):
@@ -245,7 +249,7 @@ class QuestionWidget():
         if source:
             widget.source_label.setText(source)
         if times:
-            widget.times_label.setText(times)
+            widget.times_label.setText(str(times))
         if image_path:
             qtimage = QPixmap(image_path)
             image_size = qtimage.size()
@@ -265,7 +269,8 @@ class QuestionWidget():
                 )
             widget.image_label.setPixmap(pixmap)
         if keypoints:
-            widget.keypoints_label.setText(keypoints)
+            points = ' ; '.join(keypoints)
+            widget.keypoints_label.setText(points)
         if note:
             widget.notice_label.setText(note)
         if answer:
@@ -274,7 +279,7 @@ class QuestionWidget():
     def create_widget(self, ID):
         data = self.get_question_data(ID)
         if data is False:
-            return False
+            return QWidget()
         image_path = data[4]
 
         widget = QFrame()
@@ -318,8 +323,8 @@ class QuestionWidget():
         self.del_btn.setMaximumWidth(60)
         line1.addWidget(self.del_btn)
 
-        self.edit_btn.clicked.connect(self.edit(self.ID_label.text(ID)))
-        self.del_btn.clicked.connect(self.delete(self.ID_label.text(ID)))
+        self.edit_btn.clicked.connect(self.edit)
+        self.del_btn.clicked.connect(lambda : self.delete(self.ID_label.text()))
 
         # line 2
         self.image_label = QLabel()
@@ -338,7 +343,7 @@ class QuestionWidget():
         line4.addWidget(QLabel('备注'))
         self.notice_label = QLabel()
         line4.addWidget(self.notice_label)
-        line4.addStrech()
+        line4.addStretch()
 
         # line 5
         line5.addWidget(QLabel('答案:'))
@@ -346,7 +351,7 @@ class QuestionWidget():
         line5.addWidget(self.answer_label)
         line5.addStretch()
 
-        for i, line in enumerate(line1, line2, line3, line4, line5):
+        for i, line in enumerate([line1, line2, line3, line4, line5]):
             line.setSpacing(0)
             line.setContentsMargins(12, 0, 12, 0)
             container = QWidget()
@@ -362,13 +367,34 @@ class QuestionWidget():
         widget.setLayout(layout)
 
         # fill content
-        self.fill_widget(widget, data)
+        self.fill_widget(self, data)
 
         return widget
 
+    def edit(self):
+        editor = EditWindow(self.question_data, self)
+        editor.show()
+
+    def delete(self, ID):
+        msg = QMessageBox()
+        msg.setWindowTitle('确认删除?')
+        msg.setText('确认删除题目(ID: {})?'.format(ID))
+        msg.addButton(QMessageBox.Ok)
+        cancel = msg.addButton(QMessageBox.Cancel)
+        msg.setDefaultButton(cancel)
+        rst = msg.exec()
+        # delete
+        if rst == QMessageBox.Ok:
+            subject = self.filter_subject.currentText()
+            source = self.filter_source.currentText()
+            self.question_data.MetaData.del_bind('ID', [subject, source, ID])
+        else:
+            # cancel deletion 
+            return
+
     @staticmethod
-    def get_widget(ID):
-        widget_class = QuestionWidget(ID)
+    def get_widget(question_data, ID):
+        widget_class = QuestionWidget(question_data, ID)
         return widget_class.widget
 
 class Data:
@@ -384,7 +410,7 @@ class Data:
         else:
             self.subject_child = dict()
         if 'source' in GlobalData.BIND.keys():
-            # source & ID
+            # subject->source & ID
             self.source_child = GlobalData.BIND['sources']
         else:
             self.source_child = dict()
@@ -412,14 +438,17 @@ class Data:
         if subject not in subject_keys:
             self.subject_child[subject] = []
             self.MetaData.add_bind('source', [subject, source])
-        source_keys = self.source_child.keys()
+        
+        if subject not in self.source_child.keys():
+            self.subject_child[subject] = dict() 
+        source_keys = self.source_child[subject].keys()
         if source not in source_keys:
-            self.source_child[source] = []
+            self.source_child[subject][source] = []
         if source not in self.subject_child[subject]:
             self.subject_child[subject].append(source)
-        if ID not in  self.source_child[source]:
-            self.source_child[source].append(ID)
-            self.MetaData.add_bind('ID', [source, ID])
+        if ID not in self.source_child[subject][source]:
+            self.source_child[subject][source].append(ID)
+            self.MetaData.add_bind('ID', [subject, source, ID])
 
         # add question data: ID and index    
         question_keys = self.questions.keys()
@@ -567,7 +596,7 @@ class EditorWidget(QWidget):
         
         # Line1: 题目来源
         source_group = QGroupBox("题目来源")
-        new_source_layout = QVBoxLayout()
+        self.new_source_layout = QVBoxLayout()
         source_layout = QHBoxLayout()
         source_layout_widget = QWidget()
         subject_btn_layout = QHBoxLayout()
@@ -669,7 +698,7 @@ class EditorWidget(QWidget):
         source_layout.addWidget(self.number_edit)
 
         source_layout_widget.setLayout(source_layout)
-        new_source_layout.addWidget(source_layout_widget)
+        self.new_source_layout.addWidget(source_layout_widget)
         
         # 来源文字
         from_widget = QWidget()
@@ -683,8 +712,8 @@ class EditorWidget(QWidget):
         from_layout.addWidget(self.from_text)
         from_widget.setLayout(from_layout)
 
-        new_source_layout.addWidget(from_widget)
-        source_group.setLayout(new_source_layout)
+        self.new_source_layout.addWidget(from_widget)
+        source_group.setLayout(self.new_source_layout)
         layout.addWidget(source_group)
 
         # Line2: 题目图片
@@ -1043,7 +1072,7 @@ class EditorWidget(QWidget):
             'mark': mark,
             'number': number,
             'keypoint': keypoints,
-            'notice': notice, # 新增输入备注notice的plainTextEdit
+            'notice': notice,
             'answer': answer,
             'errortimes': 1,
             'ratio': 0.0,
@@ -1062,11 +1091,159 @@ class EditorWidget(QWidget):
         self.clear_image()
         self.keypoints_list.clear()
 
+class EditWindow(EditorWidget):
+    def __init__(self, question_data, ui=None):
+        super().__init__(question_data)
+        self.setWindowModality(Qt.ApplicationModal)
+        screen_geometry = QApplication.primaryScreen().availableGeometry()
+        self.move(
+            (screen_geometry.center().x() - self.width()) // 2,
+            (screen_geometry.center().y() - self.height()) // 2
+        )
+
+        self.question_data = question_data
+        self.ui = ui
+
+        widget = QWidget()
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel('错误次数'))
+        self.times_edit = QLineEdit()
+        self.times_edit.setMinimumWidth(70)
+        self.times_edit.setMaximumWidth(80)
+        layout.addWidget(self.times_edit)
+        layout.addStretch()
+        widget.setLayout(layout)
+        self.new_source_layout.addWidget(widget)
+
+        file = question_data.MetaData.access_file()
+        metadata = json.load(file)
+        data = metadata[ui.ID_label.text()]
+
+        self.subject_combo.setCurrentText(data['subject'])
+        self.source_combo.setCurrentText(data['source'])
+        self.page_edit.setText(data['page'])
+        self.mark_combo.setCurrentText(data['mark'])
+        self.number_edit.setText(data['number'])
+        self.show_image(ui.image_label.pixmap())
+        for keypoint in data['keypoint']:
+            item = QListWidgetItem()
+            widget = QWidget()
+            itemlayout = QHBoxLayout()
+            itemlayout.setContentsMargins(10, 2, 10, 2)
+            itemlayout.setSpacing(0)
+            label = QLabel(keypoint)
+            del_btn = QPushButton('×')
+            del_btn.clicked.connect(lambda: self.del_keypoint(item))
+            itemlayout.addWidget(label)
+            itemlayout.addStretch()
+            itemlayout.addWidget(del_btn)
+            widget.setLayout(itemlayout)
+            self.keypoints_list.addItem(item)
+            self.keypoints_list.setItemWidget(item, widget)
+            item.setSizeHint(widget.sizeHint())
+        self.notice_edit.setText(data['notice'])
+        self.answer_edit.setText(data['answer'])
+        self.times_edit.setText(str(data['errortimes']))
+
+        question_data.MetaData.release_file(file)
+
+    def save_question(self):
+        file = self.question_data.MetaData.access_file()
+        metadata = json.load(file)
+        data = metadata[self.ui.ID_label.text()]
+        
+        data['subject'] = self.subject_combo.currentText()
+        data['source'] = self.source_combo.currentText()
+        data['page'] = self.page_edit.text()
+        data['mark'] = self.mark_combo.currentText()
+        data['number'] = self.number_edit.text()
+        data['keypoint'] = []
+        for i in range(self.keypoints_list.count()):
+            item = self.keypoints_list.item(i)
+            widget = self.keypoints_list.itemWidget(item)
+            if widget:
+                layout = widget.layout()
+                if layout and layout.count() > 0:
+                    label = layout.itemAt(0).widget()
+                    if isinstance(label, QLabel):
+                        #print(label.text())
+                        data['keypoint'].append(label.text())
+        data['notice'] = self.notice_edit.text()
+        data['answer'] = self.answer_edit.text()
+        data['errortimes'] = int(self.times_edit.tetx())
+
+        self.question_data.MetaData.release_file(file)
+
+        self.close()        
+
+class keypoints_filter_window():
+    def __init__(self, keypoints): 
+        self.keypoints = keypoints
+        layout = QVBoxLayout()
+
+        self.list = QListWidget()
+        layout.addWidget(self.list)
+
+        top_widget = QWidget()
+        top_layout = QHBoxLayout()
+        select_all_btn = QPushButton('全选')
+        select_all_btn.setMinimumWidth(20)
+        unselect_all_btn = QPushButton('全选')
+        unselect_all_btn.setMinimumWidth(20)
+        self.search_edit = QLineEdit()
+        self.search_edit.setMinimumWidth(100)
+        top_layout.addWidget(select_all_btn)
+        top_layout.addWidget(unselect_all_btn)
+        top_layout.addWidget(self.search_edit)
+        top_layout.addStretch()
+        top_widget.setLayout(top_layout)
+        layout.addWidget(top_widget)
+
+        ok_btn = QPushButton('确定')
+        ok_btn.setMinimumWidth(20)
+        btn_widget = QWidget()
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addStretch()
+        btn_widget.setLayout(btn_layout)
+        layout.addWidget(btn_widget)
+
+        select_all_btn.clicked.connect
+        unselect_all_btn.clicked.connect
+        ok_btn.clicked.connect
+        self.search_edit.currentTextChanged.connect
+
+    def select_all(self):
+        pass
+
+    def unselect_all(self):
+        pass
+
+    def refresh_keypoint(self):
+        pass
+
+
+    @staticmethod
+    def get_filter_resulr(keypoints):
+
+
+
+
+
+
+
+
+class group_keypoint_window():
+    pass
+
+
 class CheckerWidget(QWidget):
     def __init__(self, question_data, parent=None):
         super().__init__(parent)
         self.question_data = question_data
         self.setup_ui()
+        self.update_combo()
         self.refresh_questions()
         
     def setup_ui(self):
@@ -1086,6 +1263,8 @@ class CheckerWidget(QWidget):
         self.filter_subject = QComboBox()
         self.filter_subject.setMinimumWidth(130)
         self.filter_subject.addItem("全部")
+        self.filter_subject.addItems(self.question_data.subjects)
+        self.filter_subject.currentTextChanged.connect(self.update_combo)
         self.filter_subject.currentTextChanged.connect(self.refresh_questions)
         filter_layout.addWidget(self.filter_subject)
         
@@ -1112,29 +1291,71 @@ class CheckerWidget(QWidget):
         layout.addLayout(filter_layout)
         
         # 题目列表
-        self.scroll_area = QScrollArea()
-        self.scroll_widget = QWidget()
-        self.scroll_layout = QVBoxLayout(self.scroll_widget)
-        self.scroll_area.setWidget(self.scroll_widget)
-        self.scroll_area.setWidgetResizable(True)
+        self.list_widget = QListWidget()
+        self.list_widget.setResizeMode(QListView.Adjust)
+        self.list_widget.setVerticalScrollMode(QListView.ScrollPerPixel)
         
-        layout.addWidget(self.scroll_area)
+        layout.addWidget(self.list_widget)
         self.setLayout(layout)
         
+    def update_combo(self):
+        # 刷新科目和来源combo
+        subject = self.filter_subject.currentText()
+        self.filter_source.clear()
+        self.filter_source.addItem('全部')
+        if subject != '全部' and subject != '':
+            self.filter_source.addItems(self.question_data.subject_child[subject])
+        self.filter_source.setCurrentText('全部')
+
     def refresh_questions(self):
-        pass
+        if not ALLOW_REFRESH:
+            return
+        # 获取当前ID列表
+        subject = self.filter_subject.currentText()
+        source = self.filter_source.currentText()
+        IDs = []
+        if subject == '全部':
+            newesID = GlobalData.NEWEST_ID
+            for id in range(1, newesID + 1):
+                IDs.append('{:06d}'.format(id))
+        else:
+            if source != '全部':
+                if source in GlobalData.BIND['sources'][subject]:
+                    IDs = GlobalData.BIND['sources'][subject][source]
+            else:
+                sources = GlobalData.BIND['sources'][subject].keys()
+                for item in sources:
+                    IDs.extend(GlobalData.BIND['sources'][subject][item])
+
+        # 清空滚动区域
+        self.list_widget.clear()
+
+        # 逐个题目添加进窗口
+        for ID in IDs:
+            widget = QuestionWidget.get_widget(self.question_data, ID)
+            item = QListWidgetItem()
+            item.setSizeHint(widget.sizeHint())
+            self.list_widget.addItem(item)
+            self.list_widget.setItemWidget(item, widget)
+        
 
     def create_question_widget(self, ID):
-        return QuestionWidget.get_widget(ID)
-
-    def edit(self, ID):
-        pass
-
-    def delete(self, ID):
-        pass
+        return QuestionWidget.get_widget(self.question_data, ID)
 
     def set_filter(self):
-        pass
+        if self.filter_subject.currentText() == '全部':
+            msg = QMessageBox()
+            msg.setWindowTitle('请选择科目')
+            msg.setText('请选择科目后再筛选知识点')
+            msg.addButton(QMessageBox.Ok)
+            msg.exec()
+        else:
+            keypoints = self.question_data.keypoint_child[self.filter_subject.currentText()]
+            filter_result = keypoints_filter_window.get_filter_resulr(keypoints)
+            # 筛选指定知识点
+            for keypoint in filter_result:
+                pass
+            
 
     def group_keypoints(self):
         pass
@@ -1280,14 +1501,29 @@ class MainWindow(QMainWindow):
         splitter.setSizes([200, 1000])
         
         # 连接信号
-        self.sidebar.editor_btn.clicked.connect(lambda: self.switch_page(0))
-        self.sidebar.checker_btn.clicked.connect(lambda: self.switch_page(1))
-        self.sidebar.exporter_btn.clicked.connect(lambda: self.switch_page(2))
+        self.sidebar.editor_btn.clicked.connect(self.switch_0)
+        self.sidebar.checker_btn.clicked.connect(self.switch_1)
+        self.sidebar.exporter_btn.clicked.connect(self.switch_2)
         self.sidebar.import_btn.clicked.connect(self.import_data)
         
         # 默认显示Editor页面
         self.switch_page(0)
-        
+    
+    def switch_0(self):
+        global ALLOW_REFRESH
+        ALLOW_REFRESH = False
+        self.switch_page(0)
+
+    def switch_1(self):
+        global ALLOW_REFRESH
+        ALLOW_REFRESH = True
+        self.switch_page(1)
+    
+    def switch_2(self):
+        global ALLOW_REFRESH
+        ALLOW_REFRESH = True
+        self.switch_page(2)
+
     def switch_page(self, index):
         self.content_stack.setCurrentIndex(index)
         
