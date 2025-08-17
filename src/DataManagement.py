@@ -5,6 +5,7 @@ import sys
 import json
 import shutil
 from hashlib import md5
+from PySide6.QtGui import QPixmap
 
 import GlobalData, LogManagement
 
@@ -110,12 +111,15 @@ class MetaDataController(object):
             self.write()
             return True
         elif type == 'ID':
-            source = bind[0]
-            ID = bind[1]
-            if source not in self.bind['sources'].keys():
-                self.bind['sources'][source] = [ID]
-            if ID not in self.bind['sources'][source]:
-                self.bind['sources'][source].append(ID)
+            subject = bind[0]
+            source = bind[1]
+            ID = bind[2]
+            if subject not in self.bind['sources'].keys():
+                self.bind['sources'][subject] = [source]
+            if source not in self.bind['sources'][subject].keys():
+                self.bind['sources'][subject][source] = [ID]
+            if ID not in self.bind['sources'][subject][source]:
+                self.bind['sources'][subject][source].append(ID)
             self.write()
             return True
         else:
@@ -204,8 +208,34 @@ class DiskController(object):
     
     def read_questions(self, ID):
         # return 
-        # ID, subject, source, times, image_path, keypoints, note, answer
-        pass
+        # ID, subject, source, times, image, keypoints, note, answer
+        metadatas = dict()
+        indexs = dict()
+        # read in text data
+        dirs = os.listdir(self.text_folder)
+        images = os.listdir(self.image_folder)
+        if 'question_data' in dirs and 'index' in dirs:
+            with open(os.path.join(self.text_folder, 'question_data'), 'r', encoding='utf-8') as file:
+                metadatas = json.load(file)
+            with open(os.path.join(self.text_folder, 'index'), 'r', encoding='utf-8') as file:
+                indexs = json.load(file)
+        else:
+            return False
+        if ID not in metadatas.keys() or ID not in indexs.keys():
+            return False
+        # extract target data
+        data = metadatas[ID]
+        image_index = indexs[ID] + '.png'
+        image = QPixmap(os.path.join(self.image_folder, image_index))
+        subject = data['subject']
+        source = data['source']
+        times = data['times']
+        keypoints = data['keypoint']
+        note = data['notice']
+        answer = data['answer']
+
+        return ID, subject, source, times, image, keypoints, note, answer
+
 
     def write_questions(self, qtimage, questiondata):
         ID = questiondata['ID']

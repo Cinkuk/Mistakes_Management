@@ -232,7 +232,7 @@ class QuestionWidget():
         self.widget = self.create_widget(ID)
     
     def get_question_data(self, ID):
-        # return ID, subject, source, times, image_path, keypoints, note, answer
+        # return ID, subject, source, times, image, keypoints, note, answer
         disk = DataManagement.DiskController()
         return disk.read_questions(ID)
 
@@ -718,6 +718,7 @@ class EditorWidget(QWidget):
         # 知识点
         keypoint_group = QGroupBox('知识点')
         keypoint_layout = QVBoxLayout()
+        keypoint_layout.setSpacing(0)
         
         self.keypoints_list = QListWidget()
         self.add_keypoint_btn = QPushButton('+')
@@ -736,7 +737,7 @@ class EditorWidget(QWidget):
         answer_group = QGroupBox("答案")
         answer_layout = QVBoxLayout()
         
-        self.answer_edit = QTextEdit()
+        self.answer_edit = QLineEdit()
         self.answer_edit.setPlaceholderText("请输入答案...")
         self.answer_edit.setMaximumHeight(250)
 
@@ -749,7 +750,7 @@ class EditorWidget(QWidget):
         notice_layout.setContentsMargins(0, 0, 0, 0)
 
         notice_label = QLabel('备注')
-        self.notice_edit = QTextEdit()
+        self.notice_edit = QLineEdit()
         self.notice_edit.setPlaceholderText('请输入备注...')
         self.notice_edit.setMinimumHeight(130)
         self.notice_edit.setMaximumHeight(200)
@@ -940,6 +941,8 @@ class EditorWidget(QWidget):
         item = QListWidgetItem()
         widget = QWidget()
         itemlayout = QHBoxLayout()
+        itemlayout.setContentsMargins(10, 2, 10, 2)
+        itemlayout.setSpacing(0)
         label = QLabel(content)
         del_btn = QPushButton('×')
         del_btn.clicked.connect(lambda: self.del_keypoint(item))
@@ -1019,8 +1022,8 @@ class EditorWidget(QWidget):
         number = self.number_edit.text()
         image = self.image
         keypoints = []
-        answer = self.answer_edit.toPlainText()
-        notice = self.notice_edit.toPlainText()
+        answer = self.answer_edit.text()
+        notice = self.notice_edit.text()
 
         for i in range(self.keypoints_list.count()):
             item = self.keypoints_list.item(i)
