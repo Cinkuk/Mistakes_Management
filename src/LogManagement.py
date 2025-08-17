@@ -41,7 +41,7 @@ class Log(object):
     def write(self, type, content):
         self.writer.write(self.subscriber, type, content)
 
-ERROR_LOG = Log('BlobalException')
+ERROR_LOG = Log('GlobalException')
 def handle_exception(exc_type, exc_value, exc_traceback):
     """全局异常捕获"""
     if issubclass(exc_type, KeyboardInterrupt):
