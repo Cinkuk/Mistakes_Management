@@ -125,8 +125,27 @@ class MetaDataController(object):
         else:
             return False
 
-    def del_bind(self, type:str, bind: dict) -> bool:
-        pass
+    def del_bind(self, type:str, bind: list) -> bool:
+        if type == 'ID':
+            subject = bind[0]
+            source = bind[1]
+            ID = source[2]
+            if subject != '全部':
+                if source != '全部':
+                    if ID in self.bind['sources'][subject][source]:
+                        self.bind['sources'][subject][source].remove(ID)
+                else:
+                    for source in self.bind['source'][subject].keys():
+                        if ID in self.bind['sources'][subject][source]:
+                            self.bind['sources'][subject][source].remove(ID)
+                            break
+            else:
+                for subject in self.bind['sources'].keys():
+                    for source in self.bind['sources'][subject].keys():
+                        if ID in self.bind['sources'][subject][source]:
+                            self.bind['sources'][subject][source].remove(ID)
+                            break
+        self.write()
 
     def read_in(self):
         questions, subjects, sources, question_types, bind, keypoint_child = self.disk.read_metadatas()
@@ -138,6 +157,12 @@ class MetaDataController(object):
     def newID(self):
         GlobalData.NEWEST_ID += 1
         return GlobalData.NEWEST_ID
+    
+    def access_file(self):
+        return self.disk.access_data_file()
+    
+    def release_file(self, file):
+        self.disk.release_file(file)
 
 
 class DiskController(object):
@@ -208,7 +233,7 @@ class DiskController(object):
     
     def read_questions(self, ID):
         # return 
-        # ID, subject, source, times, image, keypoints, note, answer
+        # ID, subject, source, times, image_path, keypoints, note, answer
         metadatas = dict()
         indexs = dict()
         # read in text data
@@ -226,15 +251,15 @@ class DiskController(object):
         # extract target data
         data = metadatas[ID]
         image_index = indexs[ID] + '.png'
-        image = QPixmap(os.path.join(self.image_folder, image_index))
+        image_path = os.path.join(self.image_folder, image_index)
         subject = data['subject']
         source = data['source']
-        times = data['times']
+        times = data['errortimes']
         keypoints = data['keypoint']
         note = data['notice']
         answer = data['answer']
 
-        return ID, subject, source, times, image, keypoints, note, answer
+        return ID, subject, source, times, image_path, keypoints, note, answer
 
 
     def write_questions(self, qtimage, questiondata):
@@ -266,6 +291,14 @@ class DiskController(object):
         with open(index_file, 'w', encoding='utf-8') as file:
             json.dump(existing_index, file, indent=4)
 
+        return True
+    
+    def access_data_file(self):
+        file = open(os.path.join(self.text_folder, 'question_data'), 'r', encoding='utf-8')
+        return file
+    
+    def release_file(self, file):
+        file.close()
         return True
     
     @staticmethod
