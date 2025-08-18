@@ -1150,7 +1150,7 @@ class EditorWidget(QWidget):
 
         row = self.keypoints_list.row(item)
         self.keypoints_list.takeItem(row)
-        self.question_data.del_keypoints(subject, content)
+        self.question_data.del_keypoint(subject, content)
             
     def clear_image(self):
         self.image = ""
@@ -1340,9 +1340,9 @@ class EditWindow(EditorWidget):
 
     def save_question(self):
         file = self.question_data.MetaData.access_data_file()
-        metadata = json.load(file)
-        data = metadata[self.ui.ID_label.text()]
-        
+        datas = json.load(file)
+        data = datas[self.ui.ID_label.text()]
+        ID = self.ui.ID_label.text()
         data['subject'] = self.subject_combo.currentText()
         data['source'] = self.source_combo.currentText()
         data['page'] = self.page_edit.text()
@@ -1362,7 +1362,9 @@ class EditWindow(EditorWidget):
         data['notice'] = self.notice_edit.text()
         data['answer'] = self.answer_edit.text()
         data['errortimes'] = int(self.times_edit.text())
-
+        file.seek(0)
+        json.dump(datas, file, indent=4)
+        file.truncate()
         self.question_data.MetaData.release_file(file)
 
         self.close()        
