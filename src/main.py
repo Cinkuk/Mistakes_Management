@@ -15,14 +15,11 @@ def initial_data():
     dataManage = DataManagement.DiskController()
     # initial metadata and questions' data
     dataManage.read_metadatas()
-    dataManage.read_questions()
+    #dataManage.read_questions()
 
 if __name__ == '__main__':
     log = LogManagement.Log('main')
     log.write('INFO', 'launch APP')
     initial_data()
-    print(GlobalData.BIND)
+    #print(GlobalData.BIND)
     question_manager_app.main()
-    
-
-    
