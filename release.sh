@@ -17,6 +17,6 @@ python -m nuitka \
           --macos-create-app-bundle \
           --output-dir=build \
           --assume-yes-for-download \
-          --macos-app-name=QuestionManager \
+          --macos-app-name=MistakesManager \
           --disable-console \
           main.py
