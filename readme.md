@@ -38,7 +38,6 @@ release.sh                    # Nuitka发布脚本
  - 删除该行 ```--macos-create-app-bundle \```
  - 删除该行 ```--macos-app-name=QuestionManager \```
  - 该行 ```--disable-console \ ``` 更改为 ```--windows-disable-console \ ```
- - 所有的 ```\``` 更改为 ```^```
 
 
 Tips: 这个软件是作者为了方便复习开发的, 希望能够帮助到同样有需要的你!
