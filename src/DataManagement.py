@@ -4,6 +4,8 @@ import os
 import sys
 import json
 import shutil
+import zipfile
+from datetime import datetime
 from hashlib import md5
 from PySide6.QtGui import QPixmap
 
@@ -261,7 +263,7 @@ class DiskController(object):
     
     def read_questions(self, ID):
         # return 
-        # ID, subject, source, times, image_path, keypoints, note, answer
+        # ID, subject, source, times, image_path, keypoints, note, answer, page, number
         metadatas = dict()
         indexs = dict()
         # read in text data
@@ -284,10 +286,12 @@ class DiskController(object):
         source = data['source']
         times = data['errortimes']
         keypoints = data['keypoint']
+        page = data['page']
+        number = ' '.join([data['mark'], data['number']])
         note = data['notice']
         answer = data['answer']
 
-        return ID, subject, source, times, image_path, keypoints, note, answer
+        return ID, subject, source, times, image_path, keypoints, note, answer, page, number
 
 
     def write_questions(self, qtimage, questiondata):
@@ -346,8 +350,50 @@ class DiskController(object):
             LOG.write('INFO', '从{}, {}导入数据'.format(image_folder, text_folder))
         except:
             LOG.write('ERROR', 'OS Error 写入失败')
-
-
+    
+    @staticmethod
+    def backup(output_path):
+        disk = DiskController()
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        zip_filename = f"{timestamp}-backup.zip"
+        temp_zip_path = os.path.join(output_path, 'TEMP-'+zip_filename)
+        
+        try:
+            for folder in [disk.image_folder, disk.text_folder]:
+                if not os.path.isdir(folder):
+                    raise FileNotFoundError(f"源文件夹不存在: {folder}")
+            
+            if not os.path.isdir(output_path):
+                raise FileNotFoundError(f"输出路径不存在: {output_path}")
+            
+            with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for folder in [disk.image_folder, disk.text_folder]:
+                    for root, dirs, files in os.walk(folder):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            if os.path.isfile(file_path):
+                                arcname = os.path.relpath(file_path, os.path.dirname(folder))
+                                zipf.write(file_path, arcname)
+            
+            final_zip_path = os.path.join(output_path, zip_filename)
+            
+            if os.path.exists(final_zip_path):
+                os.remove(final_zip_path)
+            
+            os.rename(temp_zip_path, final_zip_path)
+            
+            file_size = os.path.getsize(final_zip_path) / (1024 * 1024)
+            size_str = f"{file_size:.2f} MB"
+            
+            return True, size_str
+        
+        except Exception:
+            if os.path.exists(temp_zip_path):
+                try:
+                    os.remove(temp_zip_path)
+                except:
+                    pass
+            return False, ''
 
 if __name__ == '__main__':
     a = os.path.dirname(os.path.abspath(__file__))

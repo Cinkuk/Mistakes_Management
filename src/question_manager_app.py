@@ -6,13 +6,13 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QGridLayout, QSizePolicy, QGroupBox, QInputDialog, QLayout, QListWidget,
                                QListWidgetItem, QDialog, QDialogButtonBox, QFileDialog,
                                QListView)
-from PySide6.QtCore import Qt, QDateTime, QSize, Signal, QEventLoop
+from PySide6.QtCore import Qt, QDateTime, QSize, Signal, QEventLoop, QDir, QEvent
 from PySide6.QtGui import QPixmap, QFont, QFontMetrics, QAction, QKeySequence
 import json
 import os
 from datetime import datetime
 
-import DataManagement, GlobalData
+import DataManagement, GlobalData, Exporter
 
 ALLOW_REFRESH = False # if allow loading question data
 
@@ -237,12 +237,12 @@ class QuestionWidget():
         self.widget = self.create_widget(ID)
     
     def get_question_data(self, ID):
-        # return ID, subject, source, times, image, keypoints, note, answer
+        # return ID, subject, source, times, image, keypoints, note, answer, page, number
         disk = DataManagement.DiskController()
         return disk.read_questions(ID)
 
     def fill_widget(self, widget, data):
-        ID, subject, source, times, image_path, keypoints, note, answer = data
+        ID, subject, source, times, image_path, keypoints, note, answer, page, number = data
         if ID:
             widget.ID_label.setText(ID)
         if subject:
@@ -269,6 +269,10 @@ class QuestionWidget():
                 Qt.SmoothTransformation
                 )
             widget.image_label.setPixmap(pixmap)
+        if page:
+            self.page_label.setText(page)
+        if number:
+            self.number_label.setText(number)
         if keypoints:
             points = ' ; '.join(keypoints)
             widget.keypoints_label.setText(points)
@@ -317,6 +321,14 @@ class QuestionWidget():
         self.source_label = QLabel()
         line1.addWidget(self.source_label)
         line1.addStretch()
+        line1.addWidget(QLabel('页码:'))
+        self.page_label = QLabel()
+        line1.addWidget(self.page_label)
+        line1.addStretch()
+        line1.addWidget(QLabel('编号:'))
+        self.number_label = QLabel()
+        line1.addWidget(self.number_label)
+        line1.addStretch()
         line1.addWidget(QLabel('错误次数:'))
         self.times_label = QLabel()
         line1.addWidget(self.times_label)
@@ -339,19 +351,19 @@ class QuestionWidget():
         self.image_label.mousePressEvent = lambda event : ImageViewerDialog.show(image_path)
 
         # line 3
-        line3.addWidget(QLabel('知识点:'))
+        line3.addWidget(QLabel('知识点: '))
         self.keypoints_label = QLabel()
         line3.addWidget(self.keypoints_label)
         line3.addStretch()
 
         # line 4
-        line4.addWidget(QLabel('备注'))
+        line4.addWidget(QLabel('备注: '))
         self.notice_label = QLabel()
         line4.addWidget(self.notice_label)
         line4.addStretch()
 
         # line 5
-        line5.addWidget(QLabel('答案:'))
+        line5.addWidget(QLabel('答案: '))
         self.answer_label = QLabel()
         line5.addWidget(self.answer_label)
         line5.addStretch()
@@ -401,6 +413,145 @@ class QuestionWidget():
     def get_widget(question_data, ID, parent):
         widget_class = QuestionWidget(question_data, ID, parent)
         return widget_class.widget
+
+class export_page_question(QWidget):
+    def __init__(self, question_data, ID, parent):
+        super().__init__()
+        self.list_widget_item = None
+        self.question_data = question_data
+        self.parent = parent
+        self.widget = self.create_widget(ID)
+
+    def set_list_widget_item(self, item):
+        self.list_widget_item = item
+    
+    def mousePressEvent(self, event):
+        new_state = Qt.Checked if self.list_widget_item.checkState() == Qt.Unchecked else Qt.Unchecked
+        self.list_widget_item.setCheckState(new_state)
+        super().mousePressEvent(event)
+
+    def get_question_data(self, ID):
+        # return ID, subject, source, times, image, keypoints, note, answer, page, number
+        disk = DataManagement.DiskController()
+        return disk.read_questions(ID)
+    
+    def fill_widget(self, widget, data):
+        ID, subject, source, times, image_path, keypoints, note, answer, page, number = data
+        if ID:
+            widget.ID_label.setText(ID)
+        if subject:
+            widget.subject_label.setText(subject)
+        if source:
+            widget.source_label.setText(source)
+        if times:
+            widget.times_label.setText(str(times))
+        if image_path:
+            qtimage = QPixmap(image_path)
+            image_size = qtimage.size()
+            label_size = widget.image_label.size()
+            # 计算缩放比例
+            ratio = 0.75 * min(label_size.width() / image_size.width(), 
+                    label_size.height() / image_size.height())
+
+            # 应用缩放
+            scaled_size = QSize(image_size.width() * ratio, 
+                            image_size.height() * ratio)
+            
+            pixmap = QPixmap(qtimage).scaled(
+                scaled_size,
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+                )
+            widget.image_label.setPixmap(pixmap)
+        if page:
+            self.page_label.setText(page)
+        if number:
+            self.number_label.setText(number)
+        if keypoints:
+            points = ' ; '.join(keypoints)
+            widget.keypoints_label.setText(points)
+
+    def create_widget(self, ID):
+        data = self.get_question_data(ID)
+        if data is False:
+            return QWidget()
+        image_path = data[4]
+
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
+        line1 = QHBoxLayout()
+        line2 = QHBoxLayout()
+        line3 = QHBoxLayout()
+
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # line 1
+        line1.addWidget(QLabel('题目编号:'))
+        self.ID_label = QLabel()
+        self.ID_label.setObjectName('ID_label')
+        line1.addWidget(self.ID_label)
+        line1.addStretch()
+        line1.addWidget(QLabel('科目:'))
+        self.subject_label = QLabel()
+        line1.addWidget(self.subject_label)
+        line1.addStretch()
+        line1.addWidget(QLabel('来源:'))
+        self.source_label = QLabel()
+        line1.addWidget(self.source_label)
+        line1.addStretch()
+        line1.addWidget(QLabel('页码:'))
+        self.page_label = QLabel()
+        line1.addWidget(self.page_label)
+        line1.addStretch()
+        line1.addWidget(QLabel('编号:'))
+        self.number_label = QLabel()
+        line1.addWidget(self.number_label)
+        line1.addStretch()
+        line1.addWidget(QLabel('错误次数:'))
+        self.times_label = QLabel()
+        line1.addWidget(self.times_label)
+        line1.addStretch()
+
+        # line 2
+        self.image_label = QLabel()
+        line2.addStretch()
+        line2.addWidget(self.image_label)
+        line2.addStretch()
+        self.image_label.mousePressEvent = lambda event : ImageViewerDialog.show(image_path)
+
+        # line 3
+        line3.addWidget(QLabel('知识点:'))
+        self.keypoints_label = QLabel()
+        line3.addWidget(self.keypoints_label)
+        line3.addStretch()
+
+        for i, line in enumerate([line1, line2, line3]):
+            line.setSpacing(0)
+            line.setContentsMargins(12, 0, 12, 0)
+            container = QWidget()
+            container.setMinimumHeight(30)
+            container.setMaximumHeight(30)
+            if i == 1:
+                container.setMinimumHeight(100)
+                container.setMaximumHeight(100)
+            container.setLayout(line)
+            layout.addWidget(container)
+        
+        widget.mousePressEvent = self.mousePressEvent
+        widget.item = self.list_widget_item
+
+        # fill content
+        self.fill_widget(self, data)
+
+        return widget
+
+    @staticmethod
+    def get_widget(question_data, ID, parent):
+        question_class = export_page_question(question_data, ID, parent)
+        return question_class
+        
 
 class Data:
     def __init__(self):
@@ -1400,6 +1551,10 @@ class CheckerWidget(QWidget):
         self.list_widget = QListWidget()
         self.list_widget.setResizeMode(QListView.Adjust)
         self.list_widget.setVerticalScrollMode(QListView.ScrollPerPixel)
+
+        scroll_bar = self.list_widget.verticalScrollBar()
+        scroll_bar.setSingleStep(13)
+        scroll_bar.setPageStep(10)
         
         layout.addWidget(self.list_widget)
         self.setLayout(layout)
@@ -1512,7 +1667,7 @@ class CheckerWidget(QWidget):
                         newIDs.append(ID)
             self.IDs = newIDs
 
-            # redresh window
+            # refresh window
             # 清空滚动区域
             self.list_widget.clear()
 
@@ -1529,7 +1684,12 @@ class ExporterWidget(QWidget):
         super().__init__(parent)
         self.question_data = question_data
         self.selected_questions = list()
+        self.IDs = []
+        self.ID_keypoint = dict()
+        self.subject_IDs = []
+
         self.setup_ui()
+        self.update_combo()
         self.refresh_questions()
         
     def setup_ui(self):
@@ -1546,27 +1706,32 @@ class ExporterWidget(QWidget):
         top_layout = QHBoxLayout()
         
         # 筛选
-        top_layout.addWidget(QLabel("筛选:"))
-        self.filter_combo = QComboBox()
-        self.filter_combo.setMinimumWidth(130)
-        self.filter_combo.addItem("全部")
-        self.filter_combo.currentTextChanged.connect(self.refresh_questions)
-        top_layout.addWidget(self.filter_combo)
+        top_layout.addWidget(QLabel("科目:"))
+        self.filter_subject = QComboBox()
+        self.filter_subject.setMinimumWidth(130)
+        self.filter_subject.addItem("全部")
+        self.filter_subject.addItems(self.question_data.subjects)
+        self.filter_subject.currentTextChanged.connect(self.update_combo)
+        self.filter_subject.currentTextChanged.connect(self.refresh_questions)
+        self.filter_subject.currentTextChanged.connect(self.refresh_ID_keypoint)
+        top_layout.addWidget(self.filter_subject)
         
         top_layout.addWidget(QLabel("来源:"))
-        self.source_filter = QComboBox()
-        self.source_filter.setMinimumWidth(130)
-        self.source_filter.addItem("全部")
-        self.source_filter.currentTextChanged.connect(self.refresh_questions)
-        top_layout.addWidget(self.source_filter)
+        self.filter_source = QComboBox()
+        self.filter_source.setMinimumWidth(130)
+        self.filter_source.addItem("全部")
+        self.filter_source.currentTextChanged.connect(self.refresh_questions)
+        top_layout.addWidget(self.filter_source)
 
-        top_layout.addWidget(QLabel("知识点筛选:"))
-        self.filter_keypoint_show = QLineEdit()
-        self.filter_keypoint_show.setMinimumWidth(200)
-        self.filter_keypoint_show.setEnabled(False)
-        self.filter_keypoint = QPushButton('筛选条件')
+        top_layout.addWidget(QLabel("页码筛选:"))
+        self.page_edit = QLineEdit()
+        self.page_edit.setMinimumWidth(200)
+        self.page_edit.setEnabled(True)
+        self.page_edit.setPlaceholderText('在当前结果中输入页码筛选')
+        self.page_edit.returnPressed.connect(self.filter_by_page)
+        self.filter_keypoint = QPushButton("筛选知识点")
         self.filter_keypoint.clicked.connect(self.set_filter)
-        top_layout.addWidget(self.filter_keypoint_show)
+        top_layout.addWidget(self.page_edit)
         top_layout.addWidget(self.filter_keypoint)
         
         top_layout.addStretch()
@@ -1582,45 +1747,208 @@ class ExporterWidget(QWidget):
         self.export_btn = QPushButton("导出")
         self.export_btn.setMaximumWidth(60)
         self.export_btn.clicked.connect(self.export_questions)
+        self.backup_btn = QPushButton("备份")
+        self.backup_btn.clicked.connect(self.backup_questions)
         
         top_layout2.addWidget(self.select_all_btn)
         top_layout2.addWidget(self.unselect_all_btn)
         top_layout2.addWidget(self.export_btn)
+        top_layout2.addWidget(self.backup_btn)
         top_layout2.addStretch()
         
         layout.addLayout(top_layout)
         layout.addLayout(top_layout2)
         
         # 题目列表
-        self.scroll_area = QScrollArea()
-        self.scroll_widget = QWidget()
-        self.scroll_layout = QVBoxLayout(self.scroll_widget)
-        self.scroll_area.setWidget(self.scroll_widget)
-        self.scroll_area.setWidgetResizable(True)
+        self.list_widget = QListWidget()
+        self.list_widget.setResizeMode(QListView.Adjust)
+        self.list_widget.setVerticalScrollMode(QListView.ScrollPerPixel)
+        self.list_widget.itemChanged.connect(self.on_item_changed)
+
+        scroll_bar = self.list_widget.verticalScrollBar()
+        scroll_bar.setSingleStep(13)
+        scroll_bar.setPageStep(10)
         
-        layout.addWidget(self.scroll_area)
+        layout.addWidget(self.list_widget)
         self.setLayout(layout)
         
+    def update_combo(self):
+        # 刷新科目和来源combo
+        subject = self.filter_subject.currentText()
+        self.filter_source.clear()
+        self.filter_source.addItem('全部')
+        if subject != '全部' and subject != '':
+            self.filter_source.addItems(self.question_data.subject_child[subject])
+        self.filter_source.setCurrentText('全部')
+
     def refresh_questions(self):
-        pass
+        global ALLOW_REFRESH
+        if not ALLOW_REFRESH:
+            return
+        subject = self.filter_subject.currentText()
+        source = self.filter_source.currentText()
+        IDs = []
+        if subject == '全部':
+            newesID = GlobalData.NEWEST_ID
+            for id in range(1, newesID + 1):
+                IDs.append('{:06d}'.format(id))
+        else:
+            if source != '全部':
+                if source in GlobalData.BIND['sources'][subject]:
+                    IDs = GlobalData.BIND['sources'][subject][source]
+            else:
+                sources = GlobalData.BIND['sources'][subject].keys()
+                for item in sources:
+                    IDs.extend(GlobalData.BIND['sources'][subject][item])
+        self.IDs = IDs
+        # 清空滚动区域
+        self.list_widget.clear()
+
+        # 逐个题目添加进窗口
+        for ID in self.IDs:
+            item = QListWidgetItem()
+            widget = export_page_question.get_widget(self.question_data, ID, self)
+            widget.set_list_widget_item(item)
+            widget = widget.widget
+            item.setCheckState(Qt.Unchecked)
+            item.setSizeHint(widget.sizeHint())
+
+            self.list_widget.addItem(item)
+            self.list_widget.setItemWidget(item, widget)
+            if ID in self.selected_questions:
+                item.setCheckState(Qt.Checked)
+
+    def refresh_ID_keypoint(self):
+        subject = self.filter_subject.currentText()
+        if subject != '全部':
+            self.ID_keypoint = dict()
+            IDs = []
+            for source in self.question_data.source_child[subject].keys():
+                IDs.extend(self.question_data.source_child[subject][source])
+            self.subject_IDs = IDs
+
+            file = self.question_data.MetaData.access_data_file()
+            datas = json.load(file)
+            self.question_data.MetaData.release_file(file)
+
+            for ID in IDs:
+                if ID in datas.keys():
+                    self.ID_keypoint[ID] = datas[ID]['keypoint']
+        else:
+            return
+
+    def filter_by_page(self):
+        # access to question data
+        file = self.question_data.MetaData.access_data_file()
+        datas = json.load(file)
+        self.question_data.MetaData.release_file(file)
+        # filter by page
+        page = self.page_edit.text()
+        if page == '':
+            self.refresh_questions()
+            return
+            
+        newIDs = []
+        for ID in self.IDs:
+            if ID in datas.keys() and page in datas[ID]['page']:
+                newIDs.append(ID)
+        self.IDs = newIDs
         
-    def create_export_question_widget(self, question, index):
-        widget = QFrame()
-        
-        return widget
+        # refresh window 
+        # 清空滚动区域
+        self.list_widget.clear()
+
+        # 逐个题目添加进窗口
+        for ID in self.IDs:
+            widget = QuestionWidget.get_widget(self.question_data, ID, self)
+            item = QListWidgetItem()
+            item.setSizeHint(widget.sizeHint())
+            self.list_widget.addItem(item)
+            self.list_widget.setItemWidget(item, widget)
 
     def set_filter(self):
-        pass
+        if self.filter_subject.currentText() == '全部':
+            msg = QMessageBox()
+            msg.setWindowTitle('请选择科目')
+            msg.setText('请选择科目后再筛选知识点')
+            msg.addButton(QMessageBox.Ok)
+            msg.exec()
+        else:
+            keypoints = self.question_data.keypoint_child[self.filter_subject.currentText()]
+            filter_result = keypoints_filter_window.get_filter_result(keypoints) # keypoints
+            # 筛选指定知识点
+            #self.IDs = filter_result
+            newIDs = []
+            for ID in self.subject_IDs:
+                if ID in self.ID_keypoint.keys():
+                    ID_keypoint = self.ID_keypoint[ID]
+                    if set(ID_keypoint) & set(filter_result):
+                        newIDs.append(ID)
+            self.IDs = newIDs
+
+            # refresh window
+            # 清空滚动区域
+            self.list_widget.clear()
+
+            # 逐个题目添加进窗口
+            for ID in self.IDs:
+                item = QListWidgetItem()
+                widget = export_page_question.get_widget(self.question_data, ID, self)
+                widget.set_list_widget_item(item)
+                widget = widget.widget
+                item.setCheckState(Qt.Unchecked)
+                item.setSizeHint(widget.sizeHint())
+
+                self.list_widget.addItem(item)
+                self.list_widget.setItemWidget(item, widget)
+                if ID in self.selected_questions:
+                    item.setCheckState(Qt.Checked)
             
     def select_all(self):
-        pass
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            item.setCheckState(Qt.Checked)
 
     def unselect_all(self):
-        pass
-                    
-        
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            item.setCheckState(Qt.Unchecked)
+    
+    def on_item_changed(self, item):
+        widget = self.list_widget.itemWidget(item)
+        ID_label = widget.findChild(QLabel, 'ID_label')
+        if ID_label:
+            ID = ID_label.text()
+            if item.checkState() == Qt.Checked:
+                if ID not in self.selected_questions:
+                    self.selected_questions.append(ID)
+            else:
+                if ID in self.selected_questions:
+                    self.selected_questions.remove(ID)
+        #print(self.selected_questions)
+
     def export_questions(self):
         pass
+    
+    def backup_questions(self):
+        export_dir = QFileDialog.getExistingDirectory(
+            None,
+            "请选择备份文件导出位置",
+            QDir.homePath(),
+            QFileDialog.ShowDirsOnly
+        )
+        
+        if not export_dir:  # 用户取消了选择
+            return
+        
+        status, size = DataManagement.DiskController.backup(export_dir)
+        if status:
+            QMessageBox.information(
+                None,
+                "备份完成",
+                f"备份已成功保存到:\n{export_dir}\n文件大小: {size}",
+                QMessageBox.Ok
+            )
 
 class MainWindow(QMainWindow):
     def __init__(self):
