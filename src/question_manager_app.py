@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QGridLayout, QSizePolicy, QGroupBox, QInputDialog, QLayout, QListWidget,
                                QListWidgetItem, QDialog, QDialogButtonBox, QFileDialog,
                                QListView)
-from PySide6.QtCore import Qt, QDateTime, QSize, Signal
+from PySide6.QtCore import Qt, QDateTime, QSize, Signal, QEventLoop
 from PySide6.QtGui import QPixmap, QFont, QFontMetrics, QAction, QKeySequence
 import json
 import os
@@ -1119,7 +1119,7 @@ class EditWindow(EditorWidget):
         widget.setLayout(layout)
         self.new_source_layout.addWidget(widget)
 
-        file = question_data.MetaData.access_file()
+        file = question_data.MetaData.access_data_file()
         metadata = json.load(file)
         data = metadata[ui.ID_label.text()]
 
@@ -1152,7 +1152,7 @@ class EditWindow(EditorWidget):
         question_data.MetaData.release_file(file)
 
     def save_question(self):
-        file = self.question_data.MetaData.access_file()
+        file = self.question_data.MetaData.access_data_file()
         metadata = json.load(file)
         data = metadata[self.ui.ID_label.text()]
         
@@ -1180,19 +1180,28 @@ class EditWindow(EditorWidget):
 
         self.close()        
 
-class keypoints_filter_window():
+class keypoints_filter_window(QWidget):
     def __init__(self, keypoints): 
+        super().__init__()
         self.keypoints = keypoints
+        self.selected_results = []
         layout = QVBoxLayout()
 
-        self.list = QListWidget()
-        layout.addWidget(self.list)
+        self.setWindowTitle("知识点筛选")
+        self.setWindowModality(Qt.ApplicationModal)
+        screen_geometry = QApplication.primaryScreen().availableGeometry()
+        self.move(
+            (screen_geometry.center().x() - self.width()) // 2,
+            (screen_geometry.center().y() - self.height()) // 2
+        )
 
+        self.list = QListWidget()
+        
         top_widget = QWidget()
         top_layout = QHBoxLayout()
         select_all_btn = QPushButton('全选')
         select_all_btn.setMinimumWidth(20)
-        unselect_all_btn = QPushButton('全选')
+        unselect_all_btn = QPushButton('全不选')
         unselect_all_btn.setMinimumWidth(20)
         self.search_edit = QLineEdit()
         self.search_edit.setMinimumWidth(100)
@@ -1201,7 +1210,9 @@ class keypoints_filter_window():
         top_layout.addWidget(self.search_edit)
         top_layout.addStretch()
         top_widget.setLayout(top_layout)
+
         layout.addWidget(top_widget)
+        layout.addWidget(self.list)
 
         ok_btn = QPushButton('确定')
         ok_btn.setMinimumWidth(20)
@@ -1213,32 +1224,85 @@ class keypoints_filter_window():
         btn_widget.setLayout(btn_layout)
         layout.addWidget(btn_widget)
 
-        select_all_btn.clicked.connect
-        unselect_all_btn.clicked.connect
-        ok_btn.clicked.connect
-        self.search_edit.currentTextChanged.connect
+        self.setLayout(layout)
+
+        select_all_btn.clicked.connect(self.select_all)
+        unselect_all_btn.clicked.connect(self.unselect_all)
+        ok_btn.clicked.connect(self.on_ok_clicked)
+        self.search_edit.textChanged.connect(self.searchLine_changed)
+        self.list.itemChanged.connect(self.on_item_changed)
+
+        self.refresh_keypoint()
+
+    def on_ok_clicked(self):
+        self.close()
 
     def select_all(self):
-        pass
+        for i in range(self.list.count()):
+            item = self.list.item(i)
+            item.setCheckState(Qt.Checked)
 
     def unselect_all(self):
-        pass
+        for i in range(self.list.count()):
+            item = self.list.item(i)
+            item.setCheckState(Qt.Unchecked)
+
+    def searchLine_changed(self):
+        self.refresh_keypoint()
 
     def refresh_keypoint(self):
-        pass
+        search_target = self.search_edit.text()
+        results = []
+        # filter candidate keypoints
+        if search_target != '':
+            for keypoint in self.keypoints:
+                if search_target in keypoint:
+                    results.append(keypoint)
+        else:
+            results = self.keypoints
+            
+        current_selected = set(self.selected_results)
+        
+        # clear window
+        self.list.clear()
 
+        # add candidate
+        for keypoint in results:
+            item = QListWidgetItem(keypoint)
+            # recover status
+            if keypoint in current_selected:
+                item.setCheckState(Qt.Checked)
+            else:
+                item.setCheckState(Qt.Unchecked)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            self.list.addItem(item)
 
+    def on_item_changed(self, item):
+        text = item.text()
+        if item.checkState() == Qt.Checked:
+            if text not in self.selected_results:
+                self.selected_results.append(text)
+        else:
+            if text in self.selected_results:
+                self.selected_results.remove(text)
+
+    def closeEvent(self, event):
+        self.finished = True
+        event.accept()
+        if hasattr(self, '_loop'):
+            self._loop.quit()
+
+    def exec(self):
+        self.show()
+        self._loop = QEventLoop()
+        self._loop.exec_()
+        return self.selected_results
+    
     @staticmethod
     def get_filter_result(keypoints):
         window = keypoints_filter_window(keypoints)
-
-
-
-
-
-
-
-
+        window.exec()
+        return window.selected_results
 
 class group_keypoint_window():
     pass
@@ -1252,6 +1316,8 @@ class CheckerWidget(QWidget):
         self.update_combo()
         self.refresh_questions()
         self.IDs = []
+        self.ID_keypoint = dict()
+        self.subject_IDs = []
         
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -1273,6 +1339,7 @@ class CheckerWidget(QWidget):
         self.filter_subject.addItems(self.question_data.subjects)
         self.filter_subject.currentTextChanged.connect(self.update_combo)
         self.filter_subject.currentTextChanged.connect(self.refresh_questions)
+        self.filter_subject.currentTextChanged.connect(self.refresh_ID_keypoint)
         filter_layout.addWidget(self.filter_subject)
         
         filter_layout.addWidget(QLabel("来源:"))
@@ -1286,10 +1353,10 @@ class CheckerWidget(QWidget):
         self.page_edit = QLineEdit()
         self.page_edit.setMinimumWidth(200)
         self.page_edit.setEnabled(True)
-        self.page_edit.setPlaceholderText('输入页码')
+        self.page_edit.setPlaceholderText('在当前结果中输入页码筛选')
         self.page_edit.returnPressed.connect(self.filter_by_page)
 
-        self.filter_keypoint = QPushButton('筛选条件')
+        self.filter_keypoint = QPushButton('筛选知识点')
         self.filter_keypoint.clicked.connect(self.set_filter)
         self.keypoints_group_btn = QPushButton('知识点归类')
         self.keypoints_group_btn.clicked.connect(self.group_keypoints)
@@ -1307,6 +1374,27 @@ class CheckerWidget(QWidget):
         
         layout.addWidget(self.list_widget)
         self.setLayout(layout)
+    
+    def refresh_ID_keypoint(self):
+        subject = self.filter_subject.currentText()
+        if subject != '全部':
+            self.ID_keypoint = dict()
+            IDs = []
+            for source in GlobalData.BIND['sources'][subject].keys():
+                IDs.extend(GlobalData.BIND['sources'][subject][source])
+            self.subject_IDs = IDs
+            
+            file = self.question_data.MetaData.access_data_file()
+            datas = json.load(file)
+            self.question_data.MetaData.release_file(file)
+
+            for ID in IDs:
+                if ID in datas.keys():
+                    self.ID_keypoint[ID] = datas[ID]['keypoint']
+            
+            
+        else:
+            return
         
     def update_combo(self):
         # 刷新科目和来源combo
@@ -1350,21 +1438,19 @@ class CheckerWidget(QWidget):
         
     def filter_by_page(self):
         # access to question data
-        file = self.question_data.MetaData.access_file()
+        file = self.question_data.MetaData.access_data_file()
         datas = json.load(file)
         self.question_data.MetaData.release_file(file)
         # filter by page
         page = self.page_edit.text()
-        #print(page)
         if page == '':
+            self.refresh_questions()
             return
-
+            
         newIDs = []
         for ID in self.IDs:
             if ID in datas.keys() and page in datas[ID]['page']:
                 newIDs.append(ID)
-        #print(self.IDs)
-        #print(newIDs)
         self.IDs = newIDs
         
         # refresh window 
@@ -1379,9 +1465,6 @@ class CheckerWidget(QWidget):
             self.list_widget.addItem(item)
             self.list_widget.setItemWidget(item, widget)
 
-    def create_question_widget(self, ID):
-        return QuestionWidget.get_widget(self.question_data, ID)
-
     def set_filter(self):
         if self.filter_subject.currentText() == '全部':
             msg = QMessageBox()
@@ -1391,11 +1474,28 @@ class CheckerWidget(QWidget):
             msg.exec()
         else:
             keypoints = self.question_data.keypoint_child[self.filter_subject.currentText()]
-            filter_result = keypoints_filter_window.get_filter_result(keypoints)
+            filter_result = keypoints_filter_window.get_filter_result(keypoints) # keypoints
             # 筛选指定知识点
-            for keypoint in filter_result:
-                pass
-            
+            #self.IDs = filter_result
+            newIDs = []
+            for ID in self.subject_IDs:
+                if ID in self.ID_keypoint.keys():
+                    ID_keypoint = self.ID_keypoint[ID]
+                    if set(ID_keypoint) & set(filter_result):
+                        newIDs.append(ID)
+            self.IDs = newIDs
+
+            # redresh window
+            # 清空滚动区域
+            self.list_widget.clear()
+
+            # 逐个题目添加进窗口
+            for ID in self.IDs:
+                widget = QuestionWidget.get_widget(self.question_data, ID)
+                item = QListWidgetItem()
+                item.setSizeHint(widget.sizeHint())
+                self.list_widget.addItem(item)
+                self.list_widget.setItemWidget(item, widget)
 
     def group_keypoints(self):
         pass
