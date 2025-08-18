@@ -1340,10 +1340,6 @@ class keypoints_filter_window(QWidget):
         window.exec()
         return window.selected_results
 
-class group_keypoint_window():
-    pass
-
-
 class CheckerWidget(QWidget):
     def __init__(self, question_data, parent=None):
         super().__init__(parent)
@@ -1385,7 +1381,7 @@ class CheckerWidget(QWidget):
         self.filter_source.currentTextChanged.connect(self.refresh_questions)
         filter_layout.addWidget(self.filter_source)
 
-        filter_layout.addWidget(QLabel("知识点筛选:"))
+        filter_layout.addWidget(QLabel("页码筛选:"))
         self.page_edit = QLineEdit()
         self.page_edit.setMinimumWidth(200)
         self.page_edit.setEnabled(True)
@@ -1394,11 +1390,8 @@ class CheckerWidget(QWidget):
 
         self.filter_keypoint = QPushButton('筛选知识点')
         self.filter_keypoint.clicked.connect(self.set_filter)
-        self.keypoints_group_btn = QPushButton('知识点归类')
-        self.keypoints_group_btn.clicked.connect(self.group_keypoints)
         filter_layout.addWidget(self.page_edit)
         filter_layout.addWidget(self.filter_keypoint)
-        filter_layout.addWidget(self.keypoints_group_btn)
         
         filter_layout.addStretch()
         layout.addLayout(filter_layout)
@@ -1427,8 +1420,6 @@ class CheckerWidget(QWidget):
             for ID in IDs:
                 if ID in datas.keys():
                     self.ID_keypoint[ID] = datas[ID]['keypoint']
-            
-            
         else:
             return
         
@@ -1532,9 +1523,6 @@ class CheckerWidget(QWidget):
                 item.setSizeHint(widget.sizeHint())
                 self.list_widget.addItem(item)
                 self.list_widget.setItemWidget(item, widget)
-
-    def group_keypoints(self):
-        pass
 
 class ExporterWidget(QWidget):
     def __init__(self, question_data, parent=None):
