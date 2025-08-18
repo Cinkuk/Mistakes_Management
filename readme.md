@@ -16,6 +16,7 @@
  - macOS Sequoia 15.5
 
 ## 文件结构
+```
 src/
 ├── main.py                   # 主程序
 ├── DataManagement.py         # 磁盘交互
@@ -25,6 +26,7 @@ src/
 ├── question_manager_app.py   # PySide界面
 └── docxdemo.py               # python-docx使用demo
 release.sh                    # Nuitka发布脚本
+```
 
 ## Nuitka使用 (AI生成)
  - 如果你使用macOS, 不需要更改release.sh
