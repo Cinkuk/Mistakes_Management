@@ -292,8 +292,7 @@ class DiskController(object):
         answer = data['answer']
 
         return ID, subject, source, times, image_path, keypoints, note, answer, page, number
-
-
+    
     def write_questions(self, qtimage, questiondata):
         ID = questiondata['ID']
         

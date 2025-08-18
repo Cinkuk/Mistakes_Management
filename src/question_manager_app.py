@@ -1738,6 +1738,8 @@ class ExporterWidget(QWidget):
         
         # 操作按钮
         top_layout2 = QHBoxLayout()
+        top_layout2.setContentsMargins(10, 0, 10, 0)
+        top_layout2.setSpacing(10)
         self.select_all_btn = QPushButton("全选")
         self.select_all_btn.setMaximumWidth(60)
         self.select_all_btn.clicked.connect(self.select_all)
@@ -1747,11 +1749,19 @@ class ExporterWidget(QWidget):
         self.export_btn = QPushButton("导出")
         self.export_btn.setMaximumWidth(60)
         self.export_btn.clicked.connect(self.export_questions)
+        self.blank_row_ctl = QSpinBox()
+        self.blank_row_ctl.setRange(1, 20)
+        self.blank_row_ctl.setValue(10)
+        self.blank_row_ctl.setSingleStep(1)
+        self.blank_row_ctl.setMinimumWidth(50)
+        self.blank_row_ctl.setMinimumHeight(30)
         self.backup_btn = QPushButton("备份")
         self.backup_btn.clicked.connect(self.backup_questions)
         
         top_layout2.addWidget(self.select_all_btn)
         top_layout2.addWidget(self.unselect_all_btn)
+        top_layout2.addWidget(QLabel('每题之间空行数:'))
+        top_layout2.addWidget(self.blank_row_ctl)
         top_layout2.addWidget(self.export_btn)
         top_layout2.addWidget(self.backup_btn)
         top_layout2.addStretch()
@@ -1928,7 +1938,28 @@ class ExporterWidget(QWidget):
         #print(self.selected_questions)
 
     def export_questions(self):
-        pass
+        export_dir = QFileDialog.getExistingDirectory(
+            None,
+            "请选择题目导出位置",
+            QDir.homePath(),
+            QFileDialog.ShowDirsOnly
+        )
+        docx = Exporter.DOCX()
+        statue, filepath = docx.output(self.IDs, export_dir, self.blank_row_ctl.value())
+        if statue:
+            msg = QMessageBox()
+            msg.setWindowTitle('导出完成')
+            msg.setText(f'导出成功\n文件已经导出至: {filepath}')
+            msg.addButton(QMessageBox.Ok)
+            msg.exec()
+        else:
+            msg = QMessageBox()
+            msg.setWindowTitle('导出失败')
+            msg.setText(f'导出失败\n发生未知错误, 请检查目标路径有无存取权限')
+            msg.addButton(QMessageBox.Ok)
+            msg.exec()
+
+        
     
     def backup_questions(self):
         export_dir = QFileDialog.getExistingDirectory(
