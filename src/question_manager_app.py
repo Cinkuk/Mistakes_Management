@@ -290,11 +290,15 @@ class QuestionWidget():
         line4 = QHBoxLayout()
         line5 = QHBoxLayout()
 
-        widget.setStyleSheet("""
-                    QWidget {
-                        border: 1px solid black;
-                    }
-                """)
+        widget.setFrameShape(QFrame.Box)
+        widget.setFrameShadow(QFrame.Plain)
+        widget.setLineWidth(1)
+        widget.setMidLineWidth(0)
+        #widget.setStyleSheet("""
+        #            QWidget {
+        #                border: 1px solid black;
+        #            }
+        #        """)
         
         layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1225,7 +1229,9 @@ class keypoints_filter_window():
 
 
     @staticmethod
-    def get_filter_resulr(keypoints):
+    def get_filter_result(keypoints):
+        window = keypoints_filter_window(keypoints)
+
 
 
 
@@ -1245,6 +1251,7 @@ class CheckerWidget(QWidget):
         self.setup_ui()
         self.update_combo()
         self.refresh_questions()
+        self.IDs = []
         
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -1276,14 +1283,17 @@ class CheckerWidget(QWidget):
         filter_layout.addWidget(self.filter_source)
 
         filter_layout.addWidget(QLabel("知识点筛选:"))
-        self.filter_keypoint_show = QLineEdit()
-        self.filter_keypoint_show.setMinimumWidth(200)
-        self.filter_keypoint_show.setEnabled(False)
+        self.page_edit = QLineEdit()
+        self.page_edit.setMinimumWidth(200)
+        self.page_edit.setEnabled(True)
+        self.page_edit.setPlaceholderText('输入页码')
+        self.page_edit.returnPressed.connect(self.filter_by_page)
+
         self.filter_keypoint = QPushButton('筛选条件')
         self.filter_keypoint.clicked.connect(self.set_filter)
         self.keypoints_group_btn = QPushButton('知识点归类')
         self.keypoints_group_btn.clicked.connect(self.group_keypoints)
-        filter_layout.addWidget(self.filter_keypoint_show)
+        filter_layout.addWidget(self.page_edit)
         filter_layout.addWidget(self.filter_keypoint)
         filter_layout.addWidget(self.keypoints_group_btn)
         
@@ -1326,7 +1336,7 @@ class CheckerWidget(QWidget):
                 sources = GlobalData.BIND['sources'][subject].keys()
                 for item in sources:
                     IDs.extend(GlobalData.BIND['sources'][subject][item])
-
+        self.IDs = IDs
         # 清空滚动区域
         self.list_widget.clear()
 
@@ -1338,6 +1348,36 @@ class CheckerWidget(QWidget):
             self.list_widget.addItem(item)
             self.list_widget.setItemWidget(item, widget)
         
+    def filter_by_page(self):
+        # access to question data
+        file = self.question_data.MetaData.access_file()
+        datas = json.load(file)
+        self.question_data.MetaData.release_file(file)
+        # filter by page
+        page = self.page_edit.text()
+        #print(page)
+        if page == '':
+            return
+
+        newIDs = []
+        for ID in self.IDs:
+            if ID in datas.keys() and page in datas[ID]['page']:
+                newIDs.append(ID)
+        #print(self.IDs)
+        #print(newIDs)
+        self.IDs = newIDs
+        
+        # refresh window 
+        # 清空滚动区域
+        self.list_widget.clear()
+
+        # 逐个题目添加进窗口
+        for ID in self.IDs:
+            widget = QuestionWidget.get_widget(self.question_data, ID)
+            item = QListWidgetItem()
+            item.setSizeHint(widget.sizeHint())
+            self.list_widget.addItem(item)
+            self.list_widget.setItemWidget(item, widget)
 
     def create_question_widget(self, ID):
         return QuestionWidget.get_widget(self.question_data, ID)
@@ -1351,7 +1391,7 @@ class CheckerWidget(QWidget):
             msg.exec()
         else:
             keypoints = self.question_data.keypoint_child[self.filter_subject.currentText()]
-            filter_result = keypoints_filter_window.get_filter_resulr(keypoints)
+            filter_result = keypoints_filter_window.get_filter_result(keypoints)
             # 筛选指定知识点
             for keypoint in filter_result:
                 pass
