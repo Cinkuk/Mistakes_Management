@@ -120,6 +120,7 @@ class MetaDataController(object):
                 self.bind['sources'][subject][source] = [ID]
             if ID not in self.bind['sources'][subject][source]:
                 self.bind['sources'][subject][source].append(ID)
+                        
             self.write()
             return True
         else:
@@ -129,13 +130,14 @@ class MetaDataController(object):
         if type == 'ID':
             subject = bind[0]
             source = bind[1]
-            ID = source[2]
+            ID = bind[2]
+            # delete metadata
             if subject != '全部':
                 if source != '全部':
                     if ID in self.bind['sources'][subject][source]:
                         self.bind['sources'][subject][source].remove(ID)
                 else:
-                    for source in self.bind['source'][subject].keys():
+                    for source in self.bind['sources'][subject].keys():
                         if ID in self.bind['sources'][subject][source]:
                             self.bind['sources'][subject][source].remove(ID)
                             break
@@ -145,7 +147,33 @@ class MetaDataController(object):
                         if ID in self.bind['sources'][subject][source]:
                             self.bind['sources'][subject][source].remove(ID)
                             break
-        self.write()
+            self.write()
+            # delete question_data
+            file = self.access_data_file()
+            datas = json.load(file)
+            if ID in datas.keys():
+                datas.pop(ID)
+                file.seek(0)
+                json.dump(datas, file, indent=4)
+                file.truncate()
+            self.release_file(file)
+            # delete index
+            image_folder = self.disk.image_folder
+            text_folder = self.disk.text_folder
+            index = dict()
+            image_name = ''
+            with open(os.path.join(text_folder, 'index'), 'r+', encoding='utf-8') as file:
+                index = json.load(file)
+                image_name = index[ID]
+                index.pop(ID)
+                file.seek(0)
+                json.dump(index, file, indent=4)
+                file.truncate()
+            # delete image
+            image_name += '.png'
+            os.remove(os.path.join(image_folder, image_name))
+            
+
 
     def read_in(self):
         questions, subjects, sources, question_types, bind, keypoint_child = self.disk.read_metadatas()
@@ -228,7 +256,7 @@ class DiskController(object):
             }
         metadata_file = os.path.join(self.text_folder, 'metadata')
         with open(metadata_file, 'w', encoding='utf-8') as file:
-            json.dump(metadata, file)
+            json.dump(metadata, file, indent=4)
         LOG.write('INFO', '写入元数据')
     
     def read_questions(self, ID):
@@ -294,7 +322,7 @@ class DiskController(object):
         return True
     
     def access_data_file(self):
-        file = open(os.path.join(self.text_folder, 'question_data'), 'r', encoding='utf-8')
+        file = open(os.path.join(self.text_folder, 'question_data'), 'r+', encoding='utf-8')
         return file
     
     def release_file(self, file):

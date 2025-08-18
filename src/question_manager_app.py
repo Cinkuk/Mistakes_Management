@@ -231,7 +231,8 @@ class ImageViewerDialog(QDialog):
         window.exec()
 
 class QuestionWidget():
-    def __init__(self, question_data, ID):
+    def __init__(self, question_data, ID, parent):
+        self.parent = parent
         self.question_data = question_data
         self.widget = self.create_widget(ID)
     
@@ -389,16 +390,16 @@ class QuestionWidget():
         rst = msg.exec()
         # delete
         if rst == QMessageBox.Ok:
-            subject = self.filter_subject.currentText()
-            source = self.filter_source.currentText()
+            subject = self.parent.filter_subject.currentText()
+            source = self.parent.filter_source.currentText()
             self.question_data.MetaData.del_bind('ID', [subject, source, ID])
         else:
             # cancel deletion 
             return
 
     @staticmethod
-    def get_widget(question_data, ID):
-        widget_class = QuestionWidget(question_data, ID)
+    def get_widget(question_data, ID, parent):
+        widget_class = QuestionWidget(question_data, ID, parent)
         return widget_class.widget
 
 class Data:
@@ -413,7 +414,7 @@ class Data:
             self.subject_child = GlobalData.BIND['subjects']
         else:
             self.subject_child = dict()
-        if 'source' in GlobalData.BIND.keys():
+        if 'sources' in GlobalData.BIND.keys():
             # subject->source & ID
             self.source_child = GlobalData.BIND['sources']
         else:
@@ -1047,16 +1048,51 @@ class EditorWidget(QWidget):
             msg.setButtonText(QMessageBox.Ok, '好')
             msg.exec()
             return
-        ID = self.datamanage.newID()
+        
         subject = self.subject_combo.currentText()
         source = self.source_combo.currentText()
         page = self.page_edit.text()
         mark = self.mark_combo.currentText()
         number = self.number_edit.text()
+
+        # 已经录入
+        flag = False
+        file = self.question_data.MetaData.access_data_file()
+        datas = json.load(file)
+        
+        if subject in self.question_data.source_child.keys():
+            if source in self.question_data.source_child[subject].keys():
+                for _ID in self.question_data.source_child[subject][source]:
+                    if _ID in datas.keys():
+                        if subject == datas[_ID]['subject'] and \
+                                source == datas[_ID]['source'] and \
+                                page == datas[_ID]['page'] and \
+                                mark == datas[_ID]['mark'] and \
+                                number == datas[_ID]['number']:
+                            datas[_ID]['errortimes'] += 1
+                            file.seek(0)
+                            json.dump(datas, file, indent=4)
+                            file.truncate()
+
+                            msg = QMessageBox()
+                            msg.setWindowTitle('重复录入')
+                            msg.setText('题目已存在, 错误次数已加一')
+                            msg.addButton(QMessageBox.Ok)
+                            msg.exec()
+                            flag = True
+                            break
+        self.question_data.MetaData.release_file(file)
+        if flag:
+            return
+        
+        # 剩余未获取的题目数据
+        ID = self.datamanage.newID()
         image = self.image
         keypoints = []
         answer = self.answer_edit.text()
         notice = self.notice_edit.text()
+
+        
 
         for i in range(self.keypoints_list.count()):
             item = self.keypoints_list.item(i)
@@ -1380,10 +1416,10 @@ class CheckerWidget(QWidget):
         if subject != '全部':
             self.ID_keypoint = dict()
             IDs = []
-            for source in GlobalData.BIND['sources'][subject].keys():
-                IDs.extend(GlobalData.BIND['sources'][subject][source])
+            for source in self.question_data.source_child[subject].keys():
+                IDs.extend(self.question_data.source_child[subject][source])
             self.subject_IDs = IDs
-            
+
             file = self.question_data.MetaData.access_data_file()
             datas = json.load(file)
             self.question_data.MetaData.release_file(file)
@@ -1430,7 +1466,7 @@ class CheckerWidget(QWidget):
 
         # 逐个题目添加进窗口
         for ID in IDs:
-            widget = QuestionWidget.get_widget(self.question_data, ID)
+            widget = QuestionWidget.get_widget(self.question_data, ID, self)
             item = QListWidgetItem()
             item.setSizeHint(widget.sizeHint())
             self.list_widget.addItem(item)
@@ -1459,7 +1495,7 @@ class CheckerWidget(QWidget):
 
         # 逐个题目添加进窗口
         for ID in self.IDs:
-            widget = QuestionWidget.get_widget(self.question_data, ID)
+            widget = QuestionWidget.get_widget(self.question_data, ID, self)
             item = QListWidgetItem()
             item.setSizeHint(widget.sizeHint())
             self.list_widget.addItem(item)
@@ -1491,7 +1527,7 @@ class CheckerWidget(QWidget):
 
             # 逐个题目添加进窗口
             for ID in self.IDs:
-                widget = QuestionWidget.get_widget(self.question_data, ID)
+                widget = QuestionWidget.get_widget(self.question_data, ID, self)
                 item = QListWidgetItem()
                 item.setSizeHint(widget.sizeHint())
                 self.list_widget.addItem(item)
