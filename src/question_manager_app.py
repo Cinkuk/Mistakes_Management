@@ -1361,7 +1361,7 @@ class EditWindow(EditorWidget):
                         data['keypoint'].append(label.text())
         data['notice'] = self.notice_edit.text()
         data['answer'] = self.answer_edit.text()
-        data['errortimes'] = int(self.times_edit.tetx())
+        data['errortimes'] = int(self.times_edit.text())
 
         self.question_data.MetaData.release_file(file)
 
