@@ -158,7 +158,7 @@ class MetaDataController(object):
         GlobalData.NEWEST_ID += 1
         return GlobalData.NEWEST_ID
     
-    def access_file(self):
+    def access_data_file(self):
         return self.disk.access_data_file()
     
     def release_file(self, file):
