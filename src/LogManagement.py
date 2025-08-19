@@ -54,7 +54,4 @@ def handle_exception(exc_type, exc_value, exc_traceback):
     # 写入到日志文件
     ERROR_LOG.write('ERROR', f"未捕获异常:\n{error_message}")
 
-    # 如果想同时在控制台显示，可以加上这一行
-    print(f"程序发生未捕获异常，已写入日志文件:\n{error_message}")
-
 sys.excepthook = handle_exception
