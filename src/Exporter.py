@@ -10,8 +10,10 @@ from datetime import datetime
 
 import DataManagement
 
-_now = datetime.now()
-DATE = _now.strftime("%Y-%m-%d %h-%m")
+def date():
+    _now = datetime.now()
+    DATE = _now.strftime("%Y-%m-%d %H-%M-%S")
+    return DATE
 
 
 class PageMonitor():
@@ -22,7 +24,7 @@ class PageMonitor():
 
     def initial(self, doc):
         height = doc.PAGE_HEIGHT.inches * 72
-        lines = int(height / (doc.SIZE + 4))
+        lines = int(height / doc.SIZE)
         self.lines_per_page = lines
         self.remains = lines
 
@@ -110,9 +112,10 @@ class DOCX():
         self.Monitor.add_lines(1)
         return True
 
-    def calculate_scaled_dimensions(self, original_width, original_height, available_width, available_height, max_ratio=0.7):
+    def calculate_scaled_dimensions(self, original_width, original_height, available_width, available_height, max_ratio):
         """
         calculate scaling ratio. Scaled image should occupy availabel area at max_ratio.
+        input : EMU
         return : scaled_width, scaled_height (both EMU)
         """
         target_width = available_width * max_ratio
@@ -123,29 +126,22 @@ class DOCX():
         
         scale_ratio = min(width_ratio, height_ratio)
         
-        return Emu(int(original_width * scale_ratio)), Emu(int(original_height * scale_ratio))
+        return Emu(original_width * scale_ratio), Emu(original_height * scale_ratio)
 
-    def insert_image(self, img_path):
+    def insert_image(self, img_path, width, height):
         """
         insert an image to a single paragraph
         """
         try:
             if os.path.isfile(img_path):
-                image = Image.from_file(img_path)
-                ori_width, ori_height = image.width, image.height # EMU
-                scaled_width, scaled_height = self.calculate_scaled_dimensions(
-                    ori_width, ori_height, 
-                    self.PAGE_WIDTH, self.PAGE_HEIGHT
-                    )
-                
                 paragraph = self.doc.add_paragraph()
                 run = paragraph.add_run()
-                inline_image = run.add_picture(img_path, width=Inches(scaled_width/914400), height=Inches(scaled_height/914400))
+                inline_image = run.add_picture(img_path, width=width, height=height)
             return True
         except Exception:
             return False
     
-    def write_one_question(self, data, blank_row=10):
+    def write_one_question(self, data, blank_row, ratio):
         # data: (ID, subject, source, page, number, times, keypoints, note, image_path)
         # question style:
         # for any line, only if info exists, write it
@@ -157,17 +153,14 @@ class DOCX():
         # prepare text content
         line1 = "ID: {}, 科目: {}, 来源: {}, 页码: {}, 编号: {}, 错误次数: {}".format(ID, subject, source, page, number, times)
         lines_count = 1
-        text_lines = 1
         line2 = ''
         if keypoints:
             line2 = '知识点: ' + ' ; '.join(keypoints)
             lines_count += 1
-            text_lines += 1
         line3 = ''
         if note:
             line3 = '备注' + note
             lines_count += 1
-            text_lines += 1
 
         # prepare image content
         if not os.path.isfile(image_path):
@@ -177,10 +170,12 @@ class DOCX():
         image_height = image.height
         width, height = self.calculate_scaled_dimensions(
             image_width, image_height, 
-            self.PAGE_WIDTH, self.PAGE_HEIGHT
+            self.PAGE_WIDTH, self.PAGE_HEIGHT,
+            ratio
             )
-        height = height.inches * 72
-        lines_count += int(height / self.SIZE) + 1
+        width = Inches(width.inches)
+        height = Inches(height.inches)
+        lines_count += int((height.inches * 72) / self.SIZE) + 3
 
         lines_count += blank_row
 
@@ -194,31 +189,35 @@ class DOCX():
         
         # write text content
         lines = [line1, line2, line3]
-        for i in range(text_lines):
-            self.insert_paragraph(lines[i], self.FONT, self.SIZE)
+        temp = []
+        for item in lines:
+            if item != '' and item != ' ':
+                temp.append(item)
+        for i in range(len(temp)):
+            self.insert_paragraph(temp[i], self.FONT, self.SIZE)
         # insert image
-        self.insert_image(image_path)
+        self.insert_image(image_path, width=width, height=height)
         # blank rows
         for i in range(blank_row):
             self.add_blank_row()
 
         return True
     
-    def output(self, IDs, output_path, blank_row=10):
+    def output(self, IDs, output_path, blank_row, ratio):
         disk = DataManagement.DiskController()
         # info line
-        self.insert_paragraph(f'生成于{DATE}', font=self.FONT, size=self.SIZE)
+        self.insert_paragraph(f'生成于{date()}', font=self.FONT, size=self.SIZE)
         self.add_blank_row()
         # questions
         for ID in IDs:
             ID, subject, source, times, image_path, keypoints, note, answer, page, number = disk.read_questions(ID)
             data = (ID, subject, source, page, number, times, keypoints, note, image_path)
             #print(data)
-            if not self.write_one_question(data, blank_row):
+            if not self.write_one_question(data, blank_row, ratio):
                 return False, ''
         # save
         if os.path.isdir(output_path):
-            path = os.path.join(output_path, f'错题导出-{DATE}.docx')
+            path = os.path.join(output_path, f'错题导出-{date()}.docx')
             self.doc.save(path)
 
         return True, path
