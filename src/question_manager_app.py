@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QLabel, QComboBox, QLineEdit, QTextEdit, QScrollArea,
                                QFrame, QCheckBox, QSpinBox, QFileDialog, QMessageBox,
                                QGridLayout, QSizePolicy, QGroupBox, QInputDialog, QLayout, QListWidget,
-                               QListWidgetItem, QDialog, QDialogButtonBox, QFileDialog,
+                               QListWidgetItem, QDialog, QDialogButtonBox, QFileDialog, QDoubleSpinBox,
                                QListView)
 from PySide6.QtCore import Qt, QDateTime, QSize, Signal, QEventLoop, QDir, QEvent
 from PySide6.QtGui import QPixmap, QFont, QFontMetrics, QAction, QKeySequence
@@ -12,9 +12,11 @@ import json
 import os
 from datetime import datetime
 
-import DataManagement, GlobalData, Exporter
+import DataManagement, GlobalData, Exporter, LogManagement
 
 ALLOW_REFRESH = False # if allow loading question data
+
+LOG = LogManagement.Log('user')
 
 def adjust_to_content(combo_box, extra_width=25):
     """
@@ -405,6 +407,7 @@ class QuestionWidget():
             subject = self.parent.filter_subject.currentText()
             source = self.parent.filter_source.currentText()
             self.question_data.MetaData.del_bind('ID', [subject, source, ID])
+            LOG.write('INFO', f'删除题目 ID: {ID}')
         else:
             # cancel deletion 
             return
@@ -1273,6 +1276,7 @@ class EditorWidget(QWidget):
         self.disk.write_questions(image, question_data)
         self.question_data.add_question(question_data)
         QMessageBox.information(self, "成功", "题目已保存!")
+        LOG.write('INFO', f'录入 ID:{ID}')
         
         # 清空表单
         #self.page_edit.clear()
@@ -1752,11 +1756,16 @@ class ExporterWidget(QWidget):
         self.export_btn.setMaximumWidth(60)
         self.export_btn.clicked.connect(self.export_questions)
         self.blank_row_ctl = QSpinBox()
-        self.blank_row_ctl.setRange(1, 20)
+        self.blank_row_ctl.setRange(1, 40)
         self.blank_row_ctl.setValue(10)
         self.blank_row_ctl.setSingleStep(1)
         self.blank_row_ctl.setMinimumWidth(50)
         self.blank_row_ctl.setMinimumHeight(30)
+        self.ratio_ctl = QDoubleSpinBox()
+        self.ratio_ctl.setRange(0.1, 1.0)
+        self.ratio_ctl.setSingleStep(0.01)
+        self.ratio_ctl.setDecimals(2)
+        self.ratio_ctl.setValue(0.7)
         self.backup_btn = QPushButton("备份")
         self.backup_btn.clicked.connect(self.backup_questions)
         
@@ -1764,6 +1773,8 @@ class ExporterWidget(QWidget):
         top_layout2.addWidget(self.unselect_all_btn)
         top_layout2.addWidget(QLabel('每题之间空行数:'))
         top_layout2.addWidget(self.blank_row_ctl)
+        top_layout2.addWidget(QLabel('题目显示大小比例: '))
+        top_layout2.addWidget(self.ratio_ctl)
         top_layout2.addWidget(self.export_btn)
         top_layout2.addWidget(self.backup_btn)
         top_layout2.addStretch()
@@ -1947,19 +1958,22 @@ class ExporterWidget(QWidget):
             QFileDialog.ShowDirsOnly
         )
         docx = Exporter.DOCX()
-        statue, filepath = docx.output(self.IDs, export_dir, self.blank_row_ctl.value())
+        statue, filepath = docx.output(self.IDs, export_dir, self.blank_row_ctl.value(), self.ratio_ctl.value())
         if statue:
             msg = QMessageBox()
             msg.setWindowTitle('导出完成')
             msg.setText(f'导出成功\n文件已经导出至: {filepath}')
             msg.addButton(QMessageBox.Ok)
             msg.exec()
+            LOG.write('INFO', '导出题目, ID: {}'.format(' , '.join(self.IDs)))
         else:
             msg = QMessageBox()
             msg.setWindowTitle('导出失败')
             msg.setText(f'导出失败\n发生未知错误, 请检查目标路径有无存取权限')
             msg.addButton(QMessageBox.Ok)
             msg.exec()
+            LOG.write('ERROR', '导出失败')
+            
 
         
     
@@ -1974,14 +1988,19 @@ class ExporterWidget(QWidget):
         if not export_dir:  # 用户取消了选择
             return
         
-        status, size = DataManagement.DiskController.backup(export_dir)
-        if status:
-            QMessageBox.information(
-                None,
-                "备份完成",
-                f"备份已成功保存到:\n{export_dir}\n文件大小: {size}",
-                QMessageBox.Ok
-            )
+        try:
+            status, size = DataManagement.DiskController.backup(export_dir)
+            if status:
+                QMessageBox.information(
+                    None,
+                    "备份完成",
+                    f"备份已成功保存到:\n{export_dir}\n文件大小: {size}",
+                    QMessageBox.Ok
+                )
+                LOG.write('INFO', '备份文件')
+        except Exception:
+            LOG.write('ERROR', '备份文件失败')
+            
 
 class MainWindow(QMainWindow):
     def __init__(self):
