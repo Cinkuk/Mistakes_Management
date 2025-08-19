@@ -160,6 +160,7 @@ class ChooseFile(QDialog):
         self.ok_btn.clicked.connect(lambda : self.close())
 
         grid_widget.setLayout(grid)
+        layout.addWidget(QLabel('请解压软件备份文件, 并分别选择其中的Images和Text文件夹所在路径. 导入后请重启软件.'))
         layout.addWidget(grid_widget)
         layout.addWidget(self.ok_btn)
 
@@ -2096,6 +2097,11 @@ class MainWindow(QMainWindow):
         if rst:
             image_folder, text_folder = rst
             DataManagement.DiskController.import_data(image_folder, text_folder)
+            msg = QMessageBox()
+            msg.setWindowTitle('导入成功')
+            msg.setText('导入成功, 请重启软件')
+            msg.addButton(QMessageBox.Ok)
+            msg.exec()
 
 
 def main():
