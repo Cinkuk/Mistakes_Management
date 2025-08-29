@@ -11,12 +11,16 @@ from PySide6.QtGui import QPixmap, QFont, QFontMetrics, QAction, QKeySequence
 import json
 import os
 from datetime import datetime
+from time import sleep
+import threading
 
 import DataManagement, GlobalData, Exporter, LogManagement
 
 ALLOW_REFRESH = False # if allow loading question data
 
 LOG = LogManagement.Log('user')
+
+Cache = GlobalData.Cache()
 
 def adjust_to_content(combo_box, extra_width=25):
     """
@@ -255,7 +259,11 @@ class QuestionWidget():
         if times:
             widget.times_label.setText(str(times))
         if image_path:
-            qtimage = QPixmap(image_path)
+            if Cache.if_in(image_path):
+                qtimage = Cache.read(image_path)
+            else:
+                qtimage = QPixmap(image_path)
+                Cache.add(image_path, qtimage)
             image_size = qtimage.size()
             label_size = widget.image_label.size()
             # 计算缩放比例
@@ -2103,8 +2111,16 @@ class MainWindow(QMainWindow):
             msg.addButton(QMessageBox.Ok)
             msg.exec()
 
+def asyn_initial_cache():
+    while QApplication.instance() is None:
+        sleep(1)
+    disk = DataManagement.DiskController()
+    thread = threading.Thread(target=disk.asyn_initial_cache)
+    thread.start()
 
 def main():
+    thread = threading.Thread(target=asyn_initial_cache)
+
     app = QApplication(sys.argv)
     app.setAttribute(Qt.AA_EnableHighDpiScaling)
     app.setAttribute(Qt.AA_UseHighDpiPixmaps)
@@ -2139,7 +2155,9 @@ def main():
     
     window = MainWindow()
     window.show()
-    
+
+    thread.start()
+
     sys.exit(app.exec())
 
 if __name__ == "__main__":

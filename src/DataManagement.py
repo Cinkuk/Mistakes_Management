@@ -331,6 +331,14 @@ class DiskController(object):
     def release_file(self, file):
         file.close()
         return True
+
+    def asyn_initial_cache(self):
+        Cache = GlobalData.Cache()
+        images = os.listdir(self.image_folder)
+        for file in images:
+            path = os.path.join(self.image_folder, file)
+            qtimage = QPixmap(path)
+            Cache.add(path, qtimage)
     
     @staticmethod
     def import_data(image_folder, text_folder):
