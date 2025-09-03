@@ -631,9 +631,10 @@ class Data:
     def add_subject(self, subject):
         if subject and not self.MetaData.if_in('subjects', subject):
             self.MetaData.add_subject(subject)
-            self.update_metadata()
-            return True
-        return False
+        if subject and subject not in GlobalData.BIND['subjects'].keys():
+            GlobalData.BIND['subjects'][subject] = []
+        self.update_metadata()
+        return True
     
     def del_subject(self, subject):
         rst = self.MetaData.del_subject(subject)
@@ -1162,7 +1163,7 @@ class EditorWidget(QWidget):
 
         row = self.keypoints_list.row(item)
         self.keypoints_list.takeItem(row)
-        self.question_data.del_keypoint(subject, content)
+        #self.question_data.del_keypoint(subject, content)
             
     def clear_image(self):
         self.image = ""
