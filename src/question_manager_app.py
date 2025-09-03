@@ -633,6 +633,13 @@ class Data:
             self.MetaData.add_subject(subject)
         if subject and subject not in GlobalData.BIND['subjects'].keys():
             GlobalData.BIND['subjects'][subject] = []
+            self.subject_child[subject] = []
+        if subject not in self.source_child.keys():
+            self.source_child[subject] = {}
+            GlobalData.BIND['sources'][subject] = {}
+        if subject not in self.keypoint_child.keys():
+            self.keypoint_child[subject] = []
+            GlobalData.BIND['keypoints'][subject] = []
         self.update_metadata()
         return True
     
