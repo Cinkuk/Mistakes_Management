@@ -426,136 +426,138 @@ class QuestionWidget():
         widget_class = QuestionWidget(question_data, ID, parent)
         return widget_class.widget
 
+
 class export_page_question(QWidget):
+    """Memory-optimized version of export_page_question with __slots__"""
+    __slots__ = ('list_widget_item', 'question_data', 'parent', 'widget', '_data_cache', '_image_path')
+    
     def __init__(self, question_data, ID, parent):
         super().__init__()
         self.list_widget_item = None
         self.question_data = question_data
         self.parent = parent
+        self._data_cache = None
+        self._image_path = None
         self.widget = self.create_widget(ID)
 
     def set_list_widget_item(self, item):
         self.list_widget_item = item
     
     def mousePressEvent(self, event):
-        new_state = Qt.Checked if self.list_widget_item.checkState() == Qt.Unchecked else Qt.Unchecked
-        self.list_widget_item.setCheckState(new_state)
+        if self.list_widget_item:
+            new_state = Qt.Checked if self.list_widget_item.checkState() == Qt.Unchecked else Qt.Unchecked
+            self.list_widget_item.setCheckState(new_state)
         super().mousePressEvent(event)
 
     def get_question_data(self, ID):
-        # return ID, subject, source, times, image, keypoints, note, answer, page, number
-        disk = DataManagement.DiskController()
-        return disk.read_questions(ID)
-    
-    def fill_widget(self, widget, data):
-        ID, subject, source, times, image_path, keypoints, note, answer, page, number = data
-        if ID:
-            widget.ID_label.setText(ID)
-        if subject:
-            widget.subject_label.setText(subject)
-        if source:
-            widget.source_label.setText(source)
-        if times:
-            widget.times_label.setText(str(times))
-        if image_path:
-            qtimage = QPixmap(image_path)
-            image_size = qtimage.size()
-            label_size = widget.image_label.size()
-            # 计算缩放比例
-            ratio = 0.75 * min(label_size.width() / image_size.width(), 
-                    label_size.height() / image_size.height())
+        """Cache the data to avoid repeated disk access"""
+        if self._data_cache is None:
+            disk = DataManagement.DiskController()
+            self._data_cache = disk.read_questions(ID)
+        return self._data_cache
 
-            # 应用缩放
-            scaled_size = QSize(image_size.width() * ratio, 
-                            image_size.height() * ratio)
-            
-            pixmap = QPixmap(qtimage).scaled(
-                scaled_size,
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation
+    def _create_compact_thumbnail(self, image_path):
+        """Create even more compact thumbnail for export view"""
+        image_label = QLabel()
+        image_label.setAlignment(Qt.AlignCenter)
+        image_label.setMinimumHeight(80)
+        image_label.setMaximumHeight(80)
+        
+        if image_path:
+            self._image_path = image_path
+            pixmap = QPixmap(image_path)
+            if not pixmap.isNull():
+                # Smaller thumbnail for export view
+                thumbnail = pixmap.scaled(
+                    QSize(120, 60),
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation
                 )
-            widget.image_label.setPixmap(pixmap)
-        if page:
-            self.page_label.setText(page)
-        if number:
-            self.number_label.setText(number)
-        if keypoints:
-            points = ' ; '.join(keypoints)
-            widget.keypoints_label.setText(points)
+                image_label.setPixmap(thumbnail)
+            
+            image_label.mousePressEvent = lambda event: ImageViewerDialog.show(image_path)
+        
+        return image_label
+
+    def fill_widget(self, widget, data):
+        """Streamlined fill widget"""
+        ID, subject, source, times, image_path, keypoints, note, answer, page, number = data
+        
+        widget.ID_label.setText(ID or "")
+        widget.subject_label.setText(subject or "")
+        widget.source_label.setText(source or "")
+        widget.times_label.setText(str(times) if times else "0")
+        widget.page_label.setText(page or "")
+        widget.number_label.setText(number or "")
+        widget.keypoints_label.setText(' ; '.join(keypoints) if keypoints else "")
 
     def create_widget(self, ID):
         data = self.get_question_data(ID)
         if data is False:
             return QWidget()
-        image_path = data[4]
+        
+        ID, subject, source, times, image_path, keypoints, note, answer, page, number = data
 
         widget = QWidget()
-        layout = QVBoxLayout()
-        widget.setLayout(layout)
-        line1 = QHBoxLayout()
-        line2 = QHBoxLayout()
-        line3 = QHBoxLayout()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(2)
+        layout.setContentsMargins(5, 5, 5, 5)
 
-        layout.setSpacing(0)
-        layout.setContentsMargins(0, 0, 0, 0)
+        # Create compact labels
+        widget.ID_label = QLabel(ID or "")
+        widget.ID_label.setObjectName('ID_label')
+        widget.subject_label = QLabel(subject or "")
+        widget.source_label = QLabel(source or "")
+        widget.times_label = QLabel(str(times) if times else "0")
+        widget.page_label = QLabel(page or "")
+        widget.number_label = QLabel(number or "")
+        widget.keypoints_label = QLabel(' ; '.join(keypoints) if keypoints else "")
 
-        # line 1
-        line1.addWidget(QLabel('题目编号:'))
-        self.ID_label = QLabel()
-        self.ID_label.setObjectName('ID_label')
-        line1.addWidget(self.ID_label)
-        line1.addStretch()
-        line1.addWidget(QLabel('科目:'))
-        self.subject_label = QLabel()
-        line1.addWidget(self.subject_label)
-        line1.addStretch()
-        line1.addWidget(QLabel('来源:'))
-        self.source_label = QLabel()
-        line1.addWidget(self.source_label)
-        line1.addStretch()
-        line1.addWidget(QLabel('页码:'))
-        self.page_label = QLabel()
-        line1.addWidget(self.page_label)
-        line1.addStretch()
-        line1.addWidget(QLabel('编号:'))
-        self.number_label = QLabel()
-        line1.addWidget(self.number_label)
-        line1.addStretch()
-        line1.addWidget(QLabel('错误次数:'))
-        self.times_label = QLabel()
-        line1.addWidget(self.times_label)
-        line1.addStretch()
+        # Compact info line
+        line1_container = QWidget()
+        line1_container.setMaximumHeight(25)
+        line1 = QHBoxLayout(line1_container)
+        line1.setSpacing(8)
+        line1.setContentsMargins(8, 0, 8, 0)
 
-        # line 2
-        self.image_label = QLabel()
+        info_widgets = [
+            ("题目编号:", widget.ID_label),
+            ("科目:", widget.subject_label),
+            ("来源:", widget.source_label),
+            ("页码:", widget.page_label),
+            ("编号:", widget.number_label),
+            ("错误次数:", widget.times_label)
+        ]
+        
+        for label_text, value_widget in info_widgets:
+            line1.addWidget(QLabel(label_text))
+            line1.addWidget(value_widget)
+            line1.addStretch()
+
+        layout.addWidget(line1_container)
+
+        # Compact image
+        line2_container = QWidget()
+        line2_container.setMaximumHeight(80)
+        line2 = QHBoxLayout(line2_container)
         line2.addStretch()
-        line2.addWidget(self.image_label)
+        widget.image_label = self._create_compact_thumbnail(image_path)
+        line2.addWidget(widget.image_label)
         line2.addStretch()
-        self.image_label.mousePressEvent = lambda event : ImageViewerDialog.show(image_path)
+        layout.addWidget(line2_container)
 
-        # line 3
+        # Keypoints line
+        line3_container = QWidget()
+        line3_container.setMaximumHeight(25)
+        line3 = QHBoxLayout(line3_container)
+        line3.setContentsMargins(8, 0, 8, 0)
         line3.addWidget(QLabel('知识点:'))
-        self.keypoints_label = QLabel()
-        line3.addWidget(self.keypoints_label)
+        line3.addWidget(widget.keypoints_label)
         line3.addStretch()
-
-        for i, line in enumerate([line1, line2, line3]):
-            line.setSpacing(0)
-            line.setContentsMargins(12, 0, 12, 0)
-            container = QWidget()
-            container.setMinimumHeight(30)
-            container.setMaximumHeight(30)
-            if i == 1:
-                container.setMinimumHeight(100)
-                container.setMaximumHeight(100)
-            container.setLayout(line)
-            layout.addWidget(container)
+        layout.addWidget(line3_container)
         
         widget.mousePressEvent = self.mousePressEvent
         widget.item = self.list_widget_item
-
-        # fill content
-        self.fill_widget(self, data)
 
         return widget
 
@@ -563,6 +565,48 @@ class export_page_question(QWidget):
     def get_widget(question_data, ID, parent):
         question_class = export_page_question(question_data, ID, parent)
         return question_class
+
+
+# Additional memory optimization utilities
+class MemoryOptimizedCache:
+    """Enhanced cache with memory limits and cleanup"""
+    def __init__(self, max_size=100):
+        self._cache = {}
+        self._access_order = []
+        self._max_size = max_size
+    
+    def add(self, key, value):
+        if len(self._cache) >= self._max_size:
+            # Remove least recently used
+            oldest_key = self._access_order.pop(0)
+            del self._cache[oldest_key]
+        
+        self._cache[key] = value
+        self._access_order.append(key)
+    
+    def read(self, key):
+        if key in self._cache:
+            # Update access order
+            self._access_order.remove(key)
+            self._access_order.append(key)
+            return self._cache[key]
+        return None
+    
+    def if_in(self, key):
+        return key in self._cache
+    
+    def clear(self):
+        self._cache.clear()
+        self._access_order.clear()
+
+
+# Memory monitoring utility
+def get_widget_memory_info(widget):
+    """Debug utility to check memory usage of widgets"""
+    import sys
+    size = sys.getsizeof(widget)
+    children_size = sum(sys.getsizeof(child) for child in widget.findChildren(QWidget))
+    return {"widget_size": size, "children_size": children_size, "total": size + children_size}
         
 
 class Data:
