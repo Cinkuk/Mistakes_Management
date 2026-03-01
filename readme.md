@@ -1,6 +1,6 @@
 # 错题管理 Exam Mistakes Management​
 
-* 本项目的PySide6框架部分使用了AI辅助编程 *
+* 本项目的PySide6框架部分使用了AI辅助编程 
 
 ## 功能
  - 录入错题: 题目目前只允许以图片形式录入
@@ -28,9 +28,9 @@ src/
 release.sh                    # Nuitka发布脚本
 ```
 
-## Nuitka使用 (AI生成)
+## Nuitka打包发布
  - 如果你使用macOS, 不需要更改release.sh
- - 如果你使用LinuxWindows, 请遵照以下修改.
+ - 如果你使用Linux or Windows, 按以下修改.
  - Linux:
  - 删除该行 ```--macos-create-app-bundle \```
  - 删除该行 ```--macos-app-name=QuestionManager \```
